@@ -1,0 +1,233 @@
+{% extends "base.html" %}
+{% block title %}{{ n.title }} — Framework Detail{% endblock %}
+{% set active = "framework" %}
+
+{% block content %}
+
+<!-- Back + header -->
+<div class="d-flex align-items-start mb-1 gap-3">
+  {% if back_url %}
+  <a href="{{ back_url }}" class="btn btn-sm btn-outline-secondary flex-shrink-0 mt-1">&larr; Back</a>
+  {% endif %}
+  <div>
+    <div class="d-flex align-items-center flex-wrap gap-2 mb-1">
+      <span class="font-monospace fw-semibold fs-5">{{ display_ref }}</span>
+      <!-- Status badge -->
+      {% if status == 'active' %}
+        <span class="badge" style="background-color:#16a34a;color:#fff;">Active</span>
+      {% elif status == 'likely_active' %}
+        <span class="badge" style="background-color:#65a30d;color:#fff;">Likely Active</span>
+      {% else %}
+        <span class="badge" style="background-color:#6b7280;color:#fff;">Likely Expired</span>
+      {% endif %}
+      <!-- Type badge -->
+      {% if n.is_dps %}
+        <span class="badge" style="background-color:#7c3aed;color:#fff;">DPS</span>
+      {% elif n.is_dynamic_market %}
+        <span class="badge" style="background-color:#0891b2;color:#fff;">Dynamic Market</span>
+      {% else %}
+        <span class="badge bg-success">Framework</span>
+      {% endif %}
+      <!-- Provider badge -->
+      {% if provider %}
+        <span class="badge" style="background-color:{{ provider.colour }};color:#fff;">{{ provider.name }}</span>
+      {% endif %}
+      <!-- Regime -->
+      {% if n.regime == 'PA23_FTS' %}
+        <span class="badge bg-primary">PA23</span>
+      {% else %}
+        <span class="badge bg-light text-dark border">PCR 2015</span>
+      {% endif %}
+      <!-- View on FTS -->
+      <a href="{{ source_url }}" target="_blank" rel="noopener"
+         class="btn btn-sm btn-outline-primary ms-1">View on Find a Tender &rarr;</a>
+    </div>
+    <h5 class="fw-semibold mb-0">{{ n.title }}</h5>
+    <div class="text-muted">{{ n.authority_name or "" }}</div>
+  </div>
+</div>
+
+<hr class="mt-2 mb-4">
+
+<div class="row g-4">
+
+  <!-- ── LEFT: Description + Lots ──────────────────────────────────────── -->
+  <div class="col-lg-8">
+
+    {% if n.description %}
+    <div class="card border-0 shadow-sm mb-4">
+      <div class="card-body">
+        <div class="text-muted small mb-2">Description</div>
+        <p class="mb-0 small" style="white-space:pre-wrap;">{{ n.description }}</p>
+      </div>
+    </div>
+    {% endif %}
+
+    <!-- Lots & Suppliers -->
+    {% if lots %}
+    <div class="card border-0 shadow-sm mb-4">
+      <div class="card-body px-3 py-3">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+          <div class="text-muted small">
+            Lots &amp; Awarded Suppliers
+            <span class="badge bg-secondary ms-1">{{ lots | length }} lot{{ 's' if lots | length != 1 else '' }}</span>
+          </div>
+          {% if lots | length > 8 %}
+          <div class="input-group input-group-sm" style="max-width:220px;">
+            <input type="text" id="lot-filter" class="form-control" placeholder="Filter lots…">
+          </div>
+          {% endif %}
+        </div>
+
+        <div class="accordion accordion-flush" id="lots-accordion">
+          {% for lot in lots %}
+          <div class="accordion-item lot-item border-bottom" data-lot-title="{{ lot.title | lower }}">
+            <h2 class="accordion-header" id="lot-h-{{ loop.index }}">
+              <button class="accordion-button collapsed py-2 px-2 small fw-semibold" type="button"
+                      data-bs-toggle="collapse"
+                      data-bs-target="#lot-c-{{ loop.index }}"
+                      aria-expanded="false"
+                      aria-controls="lot-c-{{ loop.index }}"
+                      style="background:transparent;">
+                {{ lot.title }}
+                {% if lot.supplier_count %}
+                <span class="badge bg-secondary ms-2 fw-normal" style="font-size:0.65rem;">
+                  {{ lot.supplier_count }} supplier{{ 's' if lot.supplier_count != 1 else '' }}
+                </span>
+                {% else %}
+                <span class="badge ms-2 fw-normal" style="font-size:0.65rem;background:#e2e8f0;color:#64748b;">
+                  see notice
+                </span>
+                {% endif %}
+              </button>
+            </h2>
+            <div id="lot-c-{{ loop.index }}" class="accordion-collapse collapse"
+                 aria-labelledby="lot-h-{{ loop.index }}"
+                 data-bs-parent="">
+              <div class="accordion-body py-2 px-3">
+                {% if lot.contract_start or lot.contract_end %}
+                <div class="text-muted small mb-2">
+                  {% if lot.contract_start %}Start: <strong>{{ lot.contract_start }}</strong>{% endif %}
+                  {% if lot.contract_end %}&ensp;End: <strong>{{ lot.contract_end }}</strong>{% endif %}
+                </div>
+                {% endif %}
+                {% if lot.suppliers %}
+                <ul class="mb-0 ps-3 small">
+                  {% for s in lot.suppliers %}
+                  <li>
+                    <a href="/supplier?name={{ s | urlencode }}" class="text-decoration-none">{{ s }}</a>
+                  </li>
+                  {% endfor %}
+                </ul>
+                {% else %}
+                <a href="{{ source_url }}" target="_blank" rel="noopener"
+                   class="small text-decoration-none text-muted">
+                  See original notice for full supplier list &rarr;
+                </a>
+                {% endif %}
+              </div>
+            </div>
+          </div>
+          {% endfor %}
+        </div>
+
+      </div>
+    </div>
+    {% elif n.has_lots %}
+    <div class="card border-0 shadow-sm mb-4">
+      <div class="card-body text-muted small">
+        <a href="{{ source_url }}" target="_blank" rel="noopener" class="text-decoration-none">
+          See original notice for full supplier list &rarr;
+        </a>
+      </div>
+    </div>
+    {% endif %}
+
+    <!-- ── Placeholder tile A ─────────────────────────────────────────── -->
+    <!-- Add future tiles here -->
+
+  </div>
+
+  <!-- ── RIGHT: Sidebar cards ──────────────────────────────────────────── -->
+  <div class="col-lg-4">
+
+    <!-- Dates card -->
+    <div class="card border-0 shadow-sm mb-3">
+      <div class="card-body">
+        <div class="text-muted small mb-2">Timeline</div>
+        <div class="d-flex justify-content-between small mb-1">
+          <span class="text-muted">Award date</span>
+          <span>{{ n.award_date[:10] if n.award_date else "—" }}</span>
+        </div>
+        <div class="d-flex justify-content-between small mb-1">
+          <span class="text-muted">Contract start</span>
+          <span>{{ n.contract_start[:10] if n.contract_start else "—" }}</span>
+        </div>
+        <div class="d-flex justify-content-between small {% if n.contract_max_extent %}mb-1{% endif %}">
+          <span class="text-muted">Contract end</span>
+          <span>{{ n.contract_end[:10] if n.contract_end else "—" }}</span>
+        </div>
+        {% if n.contract_max_extent %}
+        <div class="d-flex justify-content-between small">
+          <span class="text-muted">Extension end</span>
+          <span class="fw-semibold" style="color:#16a34a;">{{ n.contract_max_extent[:10] }}</span>
+        </div>
+        {% endif %}
+      </div>
+    </div>
+
+    <!-- Reference card -->
+    <div class="card border-0 shadow-sm mb-3">
+      <div class="card-body">
+        <div class="text-muted small mb-2">Reference</div>
+        <div class="d-flex justify-content-between small mb-1">
+          <span class="text-muted">Notice ID</span>
+          <span class="font-monospace">{{ release_id }}</span>
+        </div>
+        <div class="d-flex justify-content-between small mb-1">
+          <span class="text-muted">Published</span>
+          <span>{{ n.published_date[:10] if n.published_date else "—" }}</span>
+        </div>
+        <div class="d-flex justify-content-between small mb-1">
+          <span class="text-muted">Regime</span>
+          <span>{{ n.regime }}</span>
+        </div>
+        {% if n.cpv_main %}
+        <div class="d-flex justify-content-between small {% if provider %}mb-1{% endif %}">
+          <span class="text-muted">CPV</span>
+          <span class="font-monospace">{{ n.cpv_main }}</span>
+        </div>
+        {% endif %}
+        {% if provider %}
+        <div class="d-flex justify-content-between small">
+          <span class="text-muted">Provider</span>
+          <span class="badge" style="background-color:{{ provider.colour }};color:#fff;">{{ provider.name }} — {{ provider.description }}</span>
+        </div>
+        {% endif %}
+      </div>
+    </div>
+
+    <!-- ── Placeholder tile B ─────────────────────────────────────────── -->
+    <!-- Add future tiles here -->
+
+    <!-- ── Placeholder tile C ─────────────────────────────────────────── -->
+    <!-- Add future tiles here -->
+
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+// Lot filter (only rendered when > 8 lots)
+const lotFilter = document.getElementById('lot-filter');
+if (lotFilter) {
+  lotFilter.addEventListener('input', () => {
+    const q = lotFilter.value.toLowerCase().trim();
+    document.querySelectorAll('.lot-item').forEach(el => {
+      el.style.display = (!q || el.dataset.lotTitle.includes(q)) ? '' : 'none';
+    });
+  });
+}
+</script>
+{% endblock %}

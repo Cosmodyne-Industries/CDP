@@ -1,0 +1,253 @@
+{% extends "base.html" %}
+{% block title %}{{ names[0] }}{% if names | length > 1 %} +{{ names | length - 1 }} more{% endif %} — Supplier Report{% endblock %}
+{% set active = "supplier" %}
+
+{% block content %}
+
+<div class="text-center mb-4">
+  <a href="/supplier" class="btn btn-sm btn-outline-secondary mb-3">&larr; New search</a>
+  <h1 class="fw-bold mb-1">{{ names[0] }}</h1>
+  {% if names | length > 1 %}
+  <div class="d-flex flex-wrap justify-content-center gap-1 mb-1">
+    {% for n in names[1:] %}
+    <span class="badge bg-secondary">{{ n }}</span>
+    {% endfor %}
+  </div>
+  {% endif %}
+  {% if earliest or latest %}
+  <p class="text-muted mb-1" style="font-size:0.85rem;">
+    {{ earliest[:10] if earliest else '…' }} — {{ latest[:10] if latest else '…' }}
+  </p>
+  {% endif %}
+  {% if ch_url %}
+  <a href="{{ ch_url }}" target="_blank" rel="noopener" class="btn btn-sm btn-outline-secondary mt-1">
+    View on Companies House
+  </a>
+  {% endif %}
+</div>
+
+{% if notice_count == 0 %}
+<div class="alert alert-warning text-center">No notices found for the selected supplier name{{ 's' if names | length > 1 }}.</div>
+{% else %}
+
+<!-- Stats tiles -->
+<div class="row g-3 mb-4 justify-content-center">
+
+  <div class="col-sm-6 col-lg-3">
+    <a href="{{ notices_url }}" class="text-decoration-none">
+      <div class="card h-100 border-0 shadow-sm tile-clickable">
+        <div class="card-body">
+          <div class="text-muted small mb-1">Contracts Awarded</div>
+          <div class="fs-2 fw-bold">{{ "{:,}".format(notice_count) }}</div>
+          <div class="text-muted small mt-1">since 2021 · all regimes</div>
+        </div>
+      </div>
+    </a>
+  </div>
+
+  <div class="col-sm-6 col-lg-3">
+    <div class="card h-100 border-0 shadow-sm">
+      <div class="card-body">
+        <div class="text-muted small mb-1">Total Spend</div>
+        {% if total_spend %}
+        <div class="fs-2 fw-bold">&pound;{{ "{:,.0f}".format(total_spend) }}</div>
+        <div class="text-muted small mt-1">since 2021 · excl. frameworks &amp; DPS</div>
+        {% else %}
+        <div class="fs-2 fw-bold text-muted">—</div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+  <div class="col-sm-6 col-lg-3">
+    <div class="card h-100 border-0 shadow-sm">
+      <div class="card-body">
+        <div class="text-muted small mb-1">Typical Contract Value</div>
+        {% if median_value %}
+        <div class="fs-2 fw-bold">&pound;{{ "{:,.0f}".format(median_value) }}</div>
+        <div class="text-muted small mt-1">median · excl. new frameworks</div>
+        {% else %}
+        <div class="fs-2 fw-bold text-muted">—</div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<!-- Frameworks, DPS & Dynamic Markets (active / likely active only) -->
+{% if frameworks %}
+<div class="card border-0 shadow-sm mb-4">
+  <div class="card-body px-3 py-3">
+    <div class="text-muted small mb-2">Frameworks, DPS &amp; Dynamic Markets</div>
+    {% for f in frameworks %}
+    <a href="/framework/{{ f.release_id }}" class="text-decoration-none text-dark">
+      <div class="d-flex align-items-center py-2 {% if not loop.last %}border-bottom{% endif %} proc-row px-1">
+        <div class="flex-grow-1 small me-3">
+          <span class="fw-semibold">{{ f.title }}</span>
+          {% if f.status == 'active' %}
+            <span class="badge ms-1" style="font-size:0.65rem;background-color:#16a34a;color:#fff;">Active</span>
+          {% else %}
+            <span class="badge ms-1" style="font-size:0.65rem;background-color:#65a30d;color:#fff;">Likely Active</span>
+          {% endif %}
+        </div>
+        <div class="text-end text-muted ms-2" style="font-size:0.78rem; min-width:120px;">
+          {% if f.contract_end %}
+          Expires {{ f.contract_end[:10] }}
+          {% if f.contract_max_extent and f.contract_max_extent != f.contract_end %}
+          <div>Max {{ f.contract_max_extent[:10] }}</div>
+          {% endif %}
+          {% else %}—{% endif %}
+        </div>
+      </div>
+    </a>
+    {% endfor %}
+  </div>
+</div>
+{% endif %}
+
+<!-- Buyers + CPV breakdown -->
+{% if top_buyers or top_cpvs %}
+<div class="row g-3 mb-4">
+
+  {% if top_buyers %}
+  <div class="col-lg-6">
+    <div class="card h-100 border-0 shadow-sm">
+      <div class="card-body px-3 py-3">
+        <div class="text-muted small mb-2">Top Purchasing Bodies</div>
+        {% for b in top_buyers %}
+        <div class="d-flex align-items-center py-2 {% if not loop.last %}border-bottom{% endif %}">
+          <div class="flex-grow-1 small text-truncate me-2">{{ b.name }}</div>
+          <div class="text-end ms-2" style="min-width:80px;">
+            <div class="small fw-semibold">{{ "{:,}".format(b.count) }} contract{{ 's' if b.count != 1 }}</div>
+            {% if b.total %}<div class="text-muted" style="font-size:0.72rem;">&pound;{{ "{:,.0f}".format(b.total) }}</div>{% endif %}
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+  {% endif %}
+
+  {% if top_cpvs %}
+  <div class="col-lg-6">
+    <div class="card h-100 border-0 shadow-sm">
+      <div class="card-body px-3 py-3">
+        <div class="text-muted small mb-2">Top CPV Categories</div>
+        {% for c in top_cpvs %}
+        <a href="/cpv?code={{ c.code }}&sub=false" class="text-decoration-none text-dark">
+          <div class="d-flex align-items-center py-2 {% if not loop.last %}border-bottom{% endif %} proc-row">
+            <div class="flex-grow-1 small">
+              <span class="font-monospace fw-semibold">{{ c.code }}</span>
+              {% if c.description %}<span class="text-muted ms-2">{{ c.description }}</span>{% endif %}
+            </div>
+            <div class="small fw-semibold ms-3 text-nowrap">{{ "{:,}".format(c.count) }}</div>
+          </div>
+        </a>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+  {% endif %}
+
+</div>
+{% endif %}
+
+<!-- Spend chart (full width, bottom) -->
+{% if spend_chart %}
+<div class="row g-3 mb-4">
+  <div class="col-12">
+    <div class="card border-0 shadow-sm">
+      <div class="card-body px-4 py-3">
+        <div class="text-muted small mb-3">Spend Over Time <span class="fw-normal">(excl. frameworks)</span></div>
+        <canvas id="spendChart" height="100"></canvas>
+      </div>
+    </div>
+  </div>
+</div>
+{% endif %}
+
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+{% if spend_chart %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
+<script>
+const spendData = {{ spend_chart | tojson }};
+const ctx = document.getElementById('spendChart');
+const gradient = ctx.getContext('2d').createLinearGradient(0, 0, 0, 220);
+gradient.addColorStop(0, 'rgba(79, 70, 229, 0.85)');
+gradient.addColorStop(1, 'rgba(139, 92, 246, 0.4)');
+new Chart(ctx, {
+  type: 'bar',
+  data: {
+    labels: spendData.map(d => d.year),
+    datasets: [
+      {
+        label: 'Total Spend',
+        data: spendData.map(d => d.total),
+        backgroundColor: gradient,
+        borderRadius: 5,
+        borderSkipped: false,
+        yAxisID: 'ySpend',
+        order: 2,
+      },
+      {
+        label: 'Notices',
+        data: spendData.map(d => d.count),
+        type: 'line',
+        borderColor: 'rgba(236, 72, 153, 0.8)',
+        backgroundColor: 'rgba(236, 72, 153, 0.1)',
+        pointBackgroundColor: 'rgba(236, 72, 153, 0.9)',
+        pointRadius: 4,
+        pointHoverRadius: 6,
+        borderWidth: 2,
+        tension: 0.35,
+        fill: false,
+        yAxisID: 'yCount',
+        order: 1,
+      }
+    ]
+  },
+  options: {
+    responsive: true,
+    interaction: { mode: 'index', intersect: false },
+    plugins: {
+      legend: { display: true, position: 'top', align: 'end',
+        labels: { boxWidth: 10, boxHeight: 10, font: { size: 11 }, padding: 12 } },
+      tooltip: {
+        backgroundColor: 'rgba(15,15,25,0.85)',
+        titleFont: { size: 12 }, bodyFont: { size: 11 }, padding: 10,
+        callbacks: {
+          label: ctx => ctx.dataset.yAxisID === 'ySpend'
+            ? ' £' + ctx.parsed.y.toLocaleString('en-GB', {maximumFractionDigits: 0})
+            : ' ' + ctx.parsed.y.toLocaleString() + ' notices'
+        }
+      }
+    },
+    scales: {
+      ySpend: {
+        position: 'left',
+        ticks: {
+          callback: v => '£' + (v >= 1e9 ? (v/1e9).toFixed(1)+'b' : v >= 1e6 ? (v/1e6).toFixed(0)+'m' : (v/1e3).toFixed(0)+'k'),
+          font: { size: 11 }, color: 'rgba(79, 70, 229, 0.8)'
+        },
+        grid: { color: 'rgba(0,0,0,0.04)' }, border: { display: false }
+      },
+      yCount: {
+        position: 'right', grid: { display: false },
+        ticks: { font: { size: 11 }, color: 'rgba(236, 72, 153, 0.8)' },
+        border: { display: false }
+      },
+      x: {
+        ticks: { font: { size: 11 }, color: '#6b7280' },
+        grid: { display: false }, border: { display: false }
+      }
+    }
+  }
+});
+</script>
+{% endif %}
+
+{% endblock %}

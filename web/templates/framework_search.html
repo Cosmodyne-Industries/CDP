@@ -1,0 +1,233 @@
+{% extends "base.html" %}
+{% block title %}Framework Report — CDP{% endblock %}
+{% set active = "framework" %}
+
+{% block content %}
+
+<!-- Widely Used Providers -->
+{% if providers %}
+<div class="mb-5">
+  <h5 class="fw-semibold mb-1">Widely Used Providers</h5>
+  <p class="text-muted small mb-3">Click a provider to see all their frameworks.</p>
+  <div class="row g-3">
+    {% for p in providers %}
+    <div class="col-6 col-sm-4 col-md-3 col-lg-2">
+      <a href="/framework/list?provider={{ p.id }}" class="text-decoration-none">
+        <div class="card border-0 shadow-sm h-100 text-center py-3 px-2 provider-card"
+             style="border-top: 4px solid {{ p.colour }} !important; transition: transform 0.1s;">
+          <div class="fw-bold fs-5" style="color:{{ p.colour }};">{{ p.name }}</div>
+          <div class="text-muted" style="font-size:0.72rem;">{{ p.description }}</div>
+          <div class="mt-2">
+            <span class="badge rounded-pill" style="background:{{ p.colour }};font-size:0.68rem;">
+              {{ p.framework_count }} framework{{ 's' if p.framework_count != 1 else '' }}
+            </span>
+          </div>
+        </div>
+      </a>
+    </div>
+    {% endfor %}
+  </div>
+</div>
+<hr class="mb-4">
+{% endif %}
+
+<div class="row justify-content-center">
+  <div class="col-sm-10 col-md-8 col-lg-6">
+    <h5 class="mb-3 fw-semibold">Search All Frameworks</h5>
+    <p class="text-muted mb-4 small">Search by category, keyword, or supplier — or combine all three.</p>
+
+    <form method="get" action="/framework/report" autocomplete="off" id="fw-form">
+
+      <!-- CPV code -->
+      <div class="mb-3 position-relative">
+        <label class="form-label">CPV Code <span class="text-muted fw-normal">(optional)</span></label>
+        <input type="text" name="code" id="cpv-input" class="form-control form-control-lg"
+               value="{{ code or '' }}"
+               placeholder="e.g. 79710000 or type a description…">
+        <ul id="cpv-dropdown" class="list-group shadow position-absolute w-100 mt-1"
+            style="z-index:1000; display:none; max-height:280px; overflow-y:auto;"></ul>
+      </div>
+
+      <!-- Sub-codes toggle -->
+      <div class="mb-3 ms-1">
+        <input type="hidden" name="sub" id="sub-hidden" value="true">
+        <div class="form-check form-switch">
+          <input class="form-check-input" type="checkbox" role="switch" id="sub-toggle" checked
+                 onchange="document.getElementById('sub-hidden').value = this.checked ? 'true' : 'false'">
+          <label class="form-check-label small text-muted" for="sub-toggle">Include sub-codes</label>
+        </div>
+      </div>
+
+      <!-- Keywords -->
+      <div class="mb-4">
+        <label class="form-label">Keywords <span class="text-muted fw-normal">(optional — searches title &amp; description)</span></label>
+        <input type="text" name="q" id="kw-input" class="form-control"
+               placeholder='e.g. managed print, parking, cyber security'>
+      </div>
+
+      <!-- Supplier name chips -->
+      <div class="mb-4">
+        <label class="form-label">Supplier <span class="text-muted fw-normal">(optional — type to search)</span></label>
+
+        <!-- Chips go above the input -->
+        <div id="chips-container" class="d-flex flex-wrap gap-2 mb-2"></div>
+
+        <div class="position-relative">
+          <input type="text" id="supplier-input" class="form-control"
+                 placeholder="e.g. Civica UK Ltd" autocomplete="off">
+          <ul id="supplier-dropdown" class="list-group shadow position-absolute w-100 mt-1"
+              style="z-index:1050; display:none; max-height:240px; overflow-y:auto;"></ul>
+        </div>
+        <div class="text-muted small mt-1">Select multiple variants to combine into one search.</div>
+      </div>
+
+      <button type="submit" class="btn btn-dark btn-lg w-100" id="submit-btn">Search Frameworks</button>
+    </form>
+  </div>
+</div>
+
+<style>
+.provider-card:hover { transform: translateY(-2px); box-shadow: 0 4px 12px rgba(0,0,0,0.12) !important; }
+</style>
+{% endblock %}
+
+{% block scripts %}
+<script>
+// ── CPV autocomplete ────────────────────────────────────────────────────────
+const cpvInput    = document.getElementById('cpv-input');
+const cpvDropdown = document.getElementById('cpv-dropdown');
+let cpvDebounce;
+
+cpvInput.addEventListener('input', () => {
+  clearTimeout(cpvDebounce);
+  const q = cpvInput.value.trim();
+  if (q.length < 2) { cpvDropdown.style.display = 'none'; return; }
+  cpvDebounce = setTimeout(() => fetchCpv(q), 180);
+});
+
+async function fetchCpv(q) {
+  const res   = await fetch(`/api/cpv-suggest?q=${encodeURIComponent(q)}`);
+  const items = await res.json();
+  cpvDropdown.innerHTML = '';
+  if (!items.length) { cpvDropdown.style.display = 'none'; return; }
+  items.forEach(item => {
+    const li = document.createElement('li');
+    li.className = 'list-group-item list-group-item-action d-flex justify-content-between align-items-start py-2';
+    li.innerHTML = `
+      <div>
+        <span class="fw-semibold font-monospace">${item.code}</span>
+        <span class="text-muted ms-2 small">${item.description}</span>
+      </div>
+      <span class="badge bg-secondary rounded-pill ms-2">${item.count.toLocaleString()}</span>`;
+    li.addEventListener('mousedown', () => {
+      cpvInput.value = item.code;
+      cpvDropdown.style.display = 'none';
+    });
+    cpvDropdown.appendChild(li);
+  });
+  cpvDropdown.style.display = 'block';
+}
+
+document.addEventListener('click', e => {
+  if (!cpvInput.contains(e.target)) cpvDropdown.style.display = 'none';
+});
+
+// ── Supplier chip UI ────────────────────────────────────────────────────────
+const supplierInput    = document.getElementById('supplier-input');
+const supplierDropdown = document.getElementById('supplier-dropdown');
+const chipsContainer   = document.getElementById('chips-container');
+const form             = document.getElementById('fw-form');
+
+let selectedNames = [];
+let lastItems     = [];
+let supDebounce;
+
+supplierInput.addEventListener('input', () => {
+  clearTimeout(supDebounce);
+  const q = supplierInput.value.trim();
+  if (q.length < 2) { supplierDropdown.style.display = 'none'; return; }
+  supDebounce = setTimeout(() => fetchSuppliers(q), 180);
+});
+
+supplierInput.addEventListener('keydown', e => {
+  if (e.key === 'Escape') supplierDropdown.style.display = 'none';
+});
+
+async function fetchSuppliers(q) {
+  const res   = await fetch(`/api/supplier-suggest?q=${encodeURIComponent(q)}&framework=1`);
+  const items = await res.json();
+  lastItems = items;
+  renderDropdown(items);
+}
+
+function renderDropdown(items) {
+  supplierDropdown.innerHTML = '';
+  if (!items.length) { supplierDropdown.style.display = 'none'; return; }
+  items.forEach(item => {
+    const li = document.createElement('li');
+    const already = selectedNames.includes(item.name);
+    if (already) {
+      li.className = 'list-group-item d-flex justify-content-between align-items-center py-2 bg-light text-muted';
+    } else {
+      li.className = 'list-group-item list-group-item-action d-flex justify-content-between align-items-center py-2';
+    }
+    li.innerHTML = `
+      <span>${item.name}</span>
+      <span>${already ? '<span class="text-success fw-bold">✓</span>' : '<span class="badge bg-secondary rounded-pill">' + item.count.toLocaleString() + '</span>'}</span>`;
+    if (!already) {
+      li.addEventListener('mousedown', () => addName(item.name));
+    }
+    supplierDropdown.appendChild(li);
+  });
+  supplierDropdown.style.display = 'block';
+}
+
+function addName(name) {
+  if (selectedNames.includes(name)) return;
+  selectedNames.push(name);
+  renderDropdown(lastItems);
+  renderChips();
+}
+
+function removeName(name) {
+  selectedNames = selectedNames.filter(n => n !== name);
+  renderDropdown(lastItems);
+  renderChips();
+}
+
+function renderChips() {
+  chipsContainer.innerHTML = '';
+  selectedNames.forEach(name => {
+    // Hidden input so the name is submitted with the form
+    const hidden = document.createElement('input');
+    hidden.type  = 'hidden';
+    hidden.name  = 'name';
+    hidden.value = name;
+    form.appendChild(hidden);
+
+    const chip = document.createElement('span');
+    chip.className = 'badge bg-dark d-flex align-items-center gap-1 py-2 px-3';
+    chip.style.fontSize = '0.85rem';
+    chip.innerHTML = `${name} <button type="button" class="btn-close btn-close-white ms-1" style="font-size:0.6rem;" aria-label="Remove"></button>`;
+    chip.querySelector('.btn-close').addEventListener('click', () => removeName(name));
+    chipsContainer.appendChild(chip);
+  });
+
+  // Rebuild hidden inputs (clear old ones first)
+  form.querySelectorAll('input[name="name"]').forEach(i => i.remove());
+  selectedNames.forEach(name => {
+    const h = document.createElement('input');
+    h.type  = 'hidden';
+    h.name  = 'name';
+    h.value = name;
+    form.appendChild(h);
+  });
+}
+
+document.addEventListener('click', e => {
+  if (!supplierInput.contains(e.target) && !supplierDropdown.contains(e.target)) {
+    supplierDropdown.style.display = 'none';
+  }
+});
+</script>
+{% endblock %}

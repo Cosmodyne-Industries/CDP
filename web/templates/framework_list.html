@@ -1,0 +1,205 @@
+{% extends "base.html" %}
+{% block title %}Framework Results — CDP{% endblock %}
+{% set active = "framework" %}
+
+{% block content %}
+
+<!-- Header row -->
+<div class="d-flex align-items-center mb-1 flex-wrap gap-2">
+  <a href="/framework" class="btn btn-sm btn-outline-secondary me-2">&larr; Back</a>
+  <div class="flex-grow-1">
+    <h5 class="mb-0 fw-semibold">
+      {% if provider_obj %}
+        <span style="color:{{ provider_obj.colour }};">{{ provider_obj.name }}</span>
+        — {{ provider_obj.description }}
+      {% else %}
+        Framework Results
+      {% endif %}
+      <span class="text-muted fw-normal fs-6 ms-1">{{ total }} found</span>
+    </h5>
+    <div class="text-muted small mt-1">
+      {% if provider_obj %}<span class="me-2">Provider: <strong>{{ provider_obj.name }}</strong></span>{% endif %}
+      {% if code %}<span class="me-2">CPV: <strong>{{ code }}</strong></span>{% endif %}
+      {% if q %}<span class="me-2">Keywords: <strong>{{ q }}</strong></span>{% endif %}
+      {% if names %}
+        Supplier:
+        {% for n in names %}<strong>{{ n }}</strong>{% if not loop.last %}, {% endif %}{% endfor %}
+      {% endif %}
+      {% if not code and not q and not names and not provider_obj %}<span class="text-muted">No filters — showing latest 500</span>{% endif %}
+    </div>
+  </div>
+</div>
+
+<hr class="mt-2 mb-3">
+
+<!-- Refinement search bar (only shown when filtering by provider) -->
+{% if provider_obj %}
+<form method="get" action="/framework/list" class="d-flex gap-2 mb-3 flex-wrap align-items-center" autocomplete="off">
+  <input type="hidden" name="provider" value="{{ provider_obj.id }}">
+  <input type="text" name="code" value="{{ code }}" class="form-control form-control-sm"
+         style="max-width:160px;" placeholder="CPV code">
+  <input type="text" name="q" value="{{ q }}" class="form-control form-control-sm"
+         style="max-width:280px;" placeholder="Keyword…">
+  <button type="submit" class="btn btn-sm btn-dark">Refine</button>
+  {% if code or q %}
+  <a href="/framework/list?provider={{ provider_obj.id }}" class="btn btn-sm btn-outline-secondary">Clear</a>
+  {% endif %}
+</form>
+{% endif %}
+
+<!-- Status filter toggles (client-side) -->
+<div class="d-flex gap-2 mb-3 flex-wrap">
+  <button class="btn btn-sm fw-semibold status-btn active" data-filter="all" style="background:#1e293b;color:#fff;border:none;">
+    All <span class="badge ms-1 bg-white text-dark" id="cnt-all">{{ total }}</span>
+  </button>
+  <button class="btn btn-sm fw-semibold status-btn" data-filter="active"
+          style="background:#dcfce7;color:#14532d;border:1px solid #86efac;">
+    Active <span class="badge ms-1" id="cnt-active" style="background:#16a34a;color:#fff;">0</span>
+  </button>
+  <button class="btn btn-sm fw-semibold status-btn" data-filter="likely_active"
+          style="background:#f7fee7;color:#365314;border:1px solid #bef264;">
+    Likely Active <span class="badge ms-1" id="cnt-la" style="background:#65a30d;color:#fff;">0</span>
+  </button>
+  <button class="btn btn-sm fw-semibold status-btn" data-filter="likely_expired"
+          style="background:#f1f5f9;color:#475569;border:1px solid #cbd5e1;">
+    Likely Expired <span class="badge ms-1" id="cnt-le" style="background:#6b7280;color:#fff;">0</span>
+  </button>
+</div>
+
+{% if not frameworks %}
+<div class="text-muted py-5 text-center">No frameworks found matching your search.</div>
+{% else %}
+
+<!-- Framework list -->
+<div id="fw-list">
+  {% for fw in frameworks %}
+  {% set best_end = fw.contract_max_extent if fw.contract_max_extent else fw.contract_end %}
+  <div class="card border-0 shadow-sm mb-2 fw-card" data-status="{{ fw.status }}"
+       data-description="{{ fw.description | truncate(350) | e if fw.description else '' }}">
+    <a href="/framework/{{ fw.release_id }}" class="text-decoration-none text-dark">
+      <div class="card-body py-2 px-3">
+        <div class="row align-items-center">
+
+          <!-- Title + authority -->
+          <div class="col-lg-5 mb-1 mb-lg-0">
+            <div class="fw-semibold small">
+              {{ fw.title }}
+              {% if fw.status == 'active' %}
+                <span class="badge ms-1" style="font-size:0.65rem;background-color:#16a34a;color:#fff;">Active</span>
+              {% elif fw.status == 'likely_active' %}
+                <span class="badge ms-1" style="font-size:0.65rem;background-color:#65a30d;color:#fff;">Likely Active</span>
+              {% else %}
+                <span class="badge ms-1" style="font-size:0.65rem;background-color:#6b7280;color:#fff;">Likely Expired</span>
+              {% endif %}
+            </div>
+            <div class="text-muted" style="font-size:0.78rem;">{{ fw.authority_name or "—" }}</div>
+          </div>
+
+          <!-- Dates -->
+          <div class="col-lg-4 small text-muted">
+            <div class="d-flex gap-3 flex-wrap">
+              {% if fw.award_date %}
+              <span><span class="text-dark">Awarded:</span> {{ fw.award_date[:10] }}</span>
+              {% endif %}
+              {% if best_end %}
+              <span>
+                <span class="text-dark">{% if fw.contract_max_extent %}Ext. end:{% else %}End:{% endif %}</span>
+                {{ best_end[:10] }}
+              </span>
+              {% endif %}
+            </div>
+          </div>
+
+          <!-- Lots + CPV -->
+          <div class="col-lg-3 text-end small text-muted">
+            {% if fw.lot_count %}
+            <span class="me-3">{{ fw.lot_count }} lot{{ 's' if fw.lot_count != 1 else '' }}</span>
+            {% endif %}
+            {% if fw.cpv_main %}
+            <span class="font-monospace">{{ fw.cpv_main[:8] }}</span>
+            {% endif %}
+          </div>
+
+        </div>
+      </div>
+    </a>
+  </div>
+  {% endfor %}
+</div>
+
+{% if total == 500 %}
+<div class="text-muted text-center small mt-3">Showing first 500 results — refine your search to narrow down.</div>
+{% endif %}
+
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+<style>
+/* Selected state ring for all filter buttons */
+.status-btn { position: relative; transition: box-shadow 0.1s; }
+.status-btn.active { box-shadow: 0 0 0 2.5px rgba(15,23,42,0.35) !important; }
+</style>
+<script>
+// Count badges + filter toggle
+const cards   = document.querySelectorAll('.fw-card');
+const cntAll  = document.getElementById('cnt-all');
+const cntAct  = document.getElementById('cnt-active');
+const cntLa   = document.getElementById('cnt-la');
+const cntLe   = document.getElementById('cnt-le');
+
+let counts = {all: 0, active: 0, likely_active: 0, likely_expired: 0};
+cards.forEach(c => {
+  const s = c.dataset.status;
+  counts.all++;
+  counts[s] = (counts[s] || 0) + 1;
+});
+cntAll.textContent  = counts.all;
+cntAct.textContent  = counts.active || 0;
+cntLa.textContent   = counts.likely_active || 0;
+cntLe.textContent   = counts.likely_expired || 0;
+
+document.querySelectorAll('.status-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    const filter = btn.dataset.filter;
+    document.querySelectorAll('.status-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    cards.forEach(c => {
+      c.style.display = (filter === 'all' || c.dataset.status === filter) ? '' : 'none';
+    });
+  });
+});
+
+// Cursor-following description tooltip
+const tip = document.createElement('div');
+tip.style.cssText = [
+  'position:fixed',
+  'max-width:320px',
+  'background:#1e293b',
+  'color:#f1f5f9',
+  'padding:7px 11px',
+  'border-radius:6px',
+  'font-size:0.75rem',
+  'line-height:1.45',
+  'z-index:9999',
+  'pointer-events:none',
+  'display:none',
+  'box-shadow:0 4px 14px rgba(0,0,0,0.25)',
+  'white-space:pre-wrap',
+].join(';');
+document.body.appendChild(tip);
+
+cards.forEach(card => {
+  const desc = card.dataset.description;
+  if (!desc) return;
+  card.addEventListener('mouseenter', () => { tip.textContent = desc; tip.style.display = 'block'; });
+  card.addEventListener('mousemove', e => {
+    const x = Math.min(e.clientX + 18, window.innerWidth - 340);
+    const y = Math.min(e.clientY + 12, window.innerHeight - 160);
+    tip.style.left = x + 'px';
+    tip.style.top  = y + 'px';
+  });
+  card.addEventListener('mouseleave', () => { tip.style.display = 'none'; });
+});
+</script>
+{% endblock %}

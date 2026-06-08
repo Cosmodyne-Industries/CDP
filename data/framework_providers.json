@@ -1,0 +1,123 @@
+[
+  {
+    "id": "espo",
+    "name": "ESPO",
+    "description": "Eastern Shires Purchasing Organisation",
+    "colour": "#1d4ed8",
+    "authority_names": [
+      "ESPO",
+      "Espo",
+      "Leicestershire County Council, trading as ESPO",
+      "ESPO on behalf of Leicestershire County Council"
+    ]
+  },
+  {
+    "id": "ccs",
+    "name": "CCS",
+    "description": "Crown Commercial Service",
+    "colour": "#7c3aed",
+    "authority_names": [
+      "Crown Commercial Service",
+      "The Minister for the Cabinet Office acting through Crown Commercial Service",
+      "The Minister for the Cabinet Office acting through agent Crown Commercial Service",
+      "The Minister for the Cabinet Office acting through Crown Commercial Service (CCS)"
+    ]
+  },
+  {
+    "id": "nhs-sbs",
+    "name": "NHS SBS",
+    "description": "NHS Shared Business Services",
+    "colour": "#0284c7",
+    "authority_names": [
+      "NHS Shared Business Services Limited"
+    ]
+  },
+  {
+    "id": "ypo",
+    "name": "YPO",
+    "description": "Yorkshire Purchasing Organisation",
+    "colour": "#0f766e",
+    "authority_names": [
+      "YPO",
+      "Yorkshire Purchasing Organisation"
+    ]
+  },
+  {
+    "id": "nepo",
+    "name": "NEPO",
+    "description": "North East Procurement Organisation",
+    "colour": "#b45309",
+    "authority_names": [
+      "THE ASSOCIATION OF NORTH EAST COUNCILS LIMITED",
+      "The Association of North East Councils Limited",
+      "THE ASSOCIATION OF NORTH EAST COUNCILS LIMITED T/A NORTH EAST PROCUREMENT ORGANISATION (NEPO)",
+      "THE ASSOCIATION OF NORTH EAST COUNCILS LIMITED T/A NEPO"
+    ]
+  },
+  {
+    "id": "pfh",
+    "name": "PfH",
+    "description": "Procurement for Housing",
+    "colour": "#be185d",
+    "authority_names": [
+      "Procurement for Housing",
+      "Procurement for Housing Ltd (t/a PfH Scotland)"
+    ]
+  },
+  {
+    "id": "scape",
+    "name": "Scape",
+    "description": "Scape Group",
+    "colour": "#065f46",
+    "authority_names": [
+      "Scape Group Limited (trading as SCAPE)",
+      "Scape Procure Scotland Ltd"
+    ]
+  },
+  {
+    "id": "bluelight",
+    "name": "Bluelight",
+    "description": "BlueLight Commercial",
+    "colour": "#1e3a5f",
+    "authority_names": [
+      "BlueLight Commercial Ltd",
+      "BlueLight Commercial",
+      "BLUELIGHT COMMERCIAL LIMITED",
+      "BlueLight Commercial Limited",
+      "Bluelight Commercial"
+    ]
+  },
+  {
+    "id": "laser",
+    "name": "LASER",
+    "description": "Local Authorities South East Reserves",
+    "colour": "#92400e",
+    "authority_names": [
+      "Kent County Council (t/a LASER)",
+      "Kent County Council (t/a LASER Energy)",
+      "Kent County Council (T/A Laser Energy)"
+    ]
+  },
+  {
+    "id": "fusion21",
+    "name": "Fusion21",
+    "description": "Social housing & construction frameworks",
+    "colour": "#d97706",
+    "authority_names": [
+      "Fusion21 Members Consortium",
+      "Fusion21"
+    ]
+  },
+  {
+    "id": "procure-partnerships",
+    "name": "Procure Partnerships",
+    "description": "Procure Partnerships Framework",
+    "colour": "#9333ea",
+    "authority_names": [
+      "Alder Hey Children's NHS Foundation Trust",
+      "Alder Hey Children's NHS FT",
+      "ALDER HEY CHILDREN'S NHS FOUNDATION TRUST",
+      "Alder Hey"
+    ]
+  }
+]

@@ -1,0 +1,181 @@
+{% extends "base.html" %}
+{% block title %}{{ display_ref }} — Notice Detail{% endblock %}
+{% set active = "cpv" %}
+
+{% block content %}
+<div class="d-flex align-items-center mb-1">
+  {% if back_url %}
+  <a href="{{ back_url }}" class="btn btn-sm btn-outline-secondary me-3">&larr; Back</a>
+  {% endif %}
+  <div>
+    <span class="font-monospace fw-semibold fs-5">{{ display_ref }}</span>
+    <span class="badge bg-dark ms-2">{{ n.notice_type }}</span>
+    {% if n.above_threshold %}
+    <span class="badge bg-secondary ms-1">Above threshold</span>
+    {% else %}
+    <span class="badge bg-secondary ms-1">Below threshold</span>
+    {% endif %}
+    {% if source_url %}
+    <a href="{{ source_url }}"
+       target="_blank" rel="noopener"
+       class="btn btn-sm btn-outline-primary ms-3">{{ source_label }} &rarr;</a>
+    {% endif %}
+  </div>
+</div>
+<hr class="mt-2 mb-4">
+
+<div class="row g-4">
+
+  <!-- Left column: main details -->
+  <div class="col-lg-8">
+
+    <h5 class="fw-semibold mb-1">{{ n.title }}</h5>
+    {% if n.description %}
+    <p class="text-muted mt-2" style="white-space:pre-wrap;">{{ n.description }}</p>
+    {% endif %}
+
+    <hr>
+
+    <div class="row g-3">
+      <div class="col-sm-6">
+        <div class="text-muted small">Contracting Authority</div>
+        <div class="fw-semibold">{{ n.authority_name or "—" }}</div>
+        {% if n.authority_type %}<div class="text-muted small">{{ n.authority_type }}</div>{% endif %}
+      </div>
+      <div class="col-sm-6">
+        <div class="text-muted small">Supplier</div>
+        {% if awards | length == 1 %}
+        <div class="fw-semibold">{{ n.supplier_name or "—" }}</div>
+        {% if n.supplier_id %}
+        <div class="text-muted small font-monospace">{{ n.supplier_id }}</div>
+        {% endif %}
+        {% else %}
+        <div class="text-muted small">{{ awards | length }} contracts awarded — see table below</div>
+        {% endif %}
+      </div>
+      <div class="col-sm-6">
+        <div class="text-muted small">Procurement Method</div>
+        <div>{{ n.proc_method or n.proc_route or "—" }}</div>
+      </div>
+      <div class="col-sm-6">
+        <div class="text-muted small">CPV Code</div>
+        <div class="font-monospace">{{ n.cpv_main or "—" }}</div>
+        {% if n.cpv_additional %}
+        <div class="text-muted small">Also: {{ n.cpv_additional }}</div>
+        {% endif %}
+      </div>
+      {% if n.tenders_received is not none %}
+      <div class="col-sm-6">
+        <div class="text-muted small">Tenders Received</div>
+        <div>{{ n.tenders_received }}</div>
+      </div>
+      {% endif %}
+      {% if n.contact_name or n.contact_email %}
+      <div class="col-sm-6">
+        <div class="text-muted small">Contact</div>
+        <div>{{ n.contact_name or "" }}</div>
+        {% if n.contact_email %}
+        <div><a href="mailto:{{ n.contact_email }}">{{ n.contact_email }}</a></div>
+        {% endif %}
+      </div>
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- Right column: key figures -->
+  <div class="col-lg-4">
+
+    <div class="card border-0 shadow-sm mb-3">
+      <div class="card-body">
+        {% if awards | length == 1 %}
+        <div class="text-muted small mb-1">Contract Value (gross inc. VAT)</div>
+        <div class="fs-3 fw-bold">
+          {% if n.value_gross %}&pound;{{ "{:,.0f}".format(n.value_gross) }}{% else %}—{% endif %}
+        </div>
+        {% if n.value_awarded %}
+        <div class="text-muted small">&pound;{{ "{:,.0f}".format(n.value_awarded) }} net ex. VAT</div>
+        {% endif %}
+        {% else %}
+        {% set total_val = awards | selectattr('value_awarded') | sum(attribute='value_awarded') %}
+        <div class="text-muted small mb-1">Total Value ({{ awards | length }} contracts)</div>
+        <div class="fs-3 fw-bold">
+          {% if total_val %}&pound;{{ "{:,.0f}".format(total_val) }}{% else %}—{% endif %}
+        </div>
+        {% endif %}
+      </div>
+    </div>
+
+    <div class="card border-0 shadow-sm mb-3">
+      <div class="card-body">
+        <div class="text-muted small mb-2">Timeline</div>
+        <div class="d-flex justify-content-between small mb-1">
+          <span class="text-muted">Award date</span>
+          <span>{{ n.award_date[:10] if n.award_date else "—" }}</span>
+        </div>
+        <div class="d-flex justify-content-between small mb-1">
+          <span class="text-muted">Contract start</span>
+          <span>{{ n.contract_start or "—" }}</span>
+        </div>
+        <div class="d-flex justify-content-between small {% if n.contract_max_extent %}mb-1{% endif %}">
+          <span class="text-muted">Contract end</span>
+          <span>{{ n.contract_end or "—" }}</span>
+        </div>
+        {% if n.contract_max_extent %}
+        <div class="d-flex justify-content-between small">
+          <span class="text-muted">Extension end</span>
+          <span class="fw-semibold" style="color:#16a34a;">{{ n.contract_max_extent }}</span>
+        </div>
+        {% endif %}
+      </div>
+    </div>
+
+    <div class="card border-0 shadow-sm">
+      <div class="card-body">
+        <div class="text-muted small mb-2">Reference</div>
+        <div class="d-flex justify-content-between small mb-1">
+          <span class="text-muted">Notice ID</span>
+          <span class="font-monospace">{{ n.release_id }}</span>
+        </div>
+        <div class="d-flex justify-content-between small mb-1">
+          <span class="text-muted">Published</span>
+          <span>{{ n.published_date[:10] if n.published_date else "—" }}</span>
+        </div>
+        <div class="d-flex justify-content-between small">
+          <span class="text-muted">Regime</span>
+          <span>{{ n.regime }}</span>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+{% if awards | length > 1 %}
+<div class="card border-0 shadow-sm mt-4">
+  <div class="card-body px-3 py-3">
+    <div class="text-muted small mb-3">Contracts Awarded ({{ awards | length }})</div>
+    <table class="table table-sm table-hover mb-0">
+      <thead>
+        <tr class="text-muted small">
+          <th class="fw-normal">Supplier</th>
+          <th class="fw-normal text-end">Value</th>
+          <th class="fw-normal text-end">Award Date</th>
+        </tr>
+      </thead>
+      <tbody class="small">
+        {% for a in awards %}
+        <tr>
+          <td>{{ a.supplier_name or "—" }}</td>
+          <td class="text-end">
+            {% set val = a.value_gross or a.value_awarded %}
+            {% if val %}&pound;{{ "{:,.0f}".format(val) }}{% else %}—{% endif %}
+          </td>
+          <td class="text-end text-muted">{{ a.award_date[:10] if a.award_date else "—" }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,467 @@
+{% extends "base.html" %}
+{% block title %}{{ description or code }} — Category Report{% endblock %}
+{% set active = "cpv" %}
+
+{% block content %}
+
+<!-- Page header -->
+<div class="text-center mb-4">
+  <a href="/cpv" class="btn btn-sm btn-outline-secondary mb-3">&larr; New search</a>
+  {% if description or code %}
+  <h1 class="fw-bold mb-1">{{ description or code }}</h1>
+  {% if kw1 or kw2 %}
+  <p class="fs-5 text-secondary mt-1 mb-1">
+    relating to
+    {% if kw1 %}<em>{{ kw1 }}</em>{% endif %}
+    {% if kw1 and kw2 %}<span class="text-muted">{{ op }}</span>{% endif %}
+    {% if kw2 %}<em>{{ kw2 }}</em>{% endif %}
+  </p>
+  {% endif %}
+  <p class="text-muted mb-0" style="font-size:0.82rem;">CPV {{ code }}{% if sub %} &nbsp;·&nbsp; including sub-codes{% endif %}</p>
+  {% else %}
+  <h1 class="fw-bold mb-1">
+    {% if kw1 %}<em>{{ kw1 }}</em>{% endif %}
+    {% if kw1 and kw2 %}<span class="fw-normal text-muted fs-4">{{ op }}</span>{% endif %}
+    {% if kw2 %}<em>{{ kw2 }}</em>{% endif %}
+  </h1>
+  <p class="text-muted mb-0" style="font-size:0.82rem;">Keyword search · all categories</p>
+  {% endif %}
+</div>
+
+<!-- Refine panel -->
+<div class="d-flex justify-content-center mb-4">
+  <div class="card border-0 bg-light" style="width:520px;">
+    <div class="card-body py-3 px-4">
+      <div class="d-flex align-items-center gap-2 mb-2">
+        <span class="fw-semibold small text-muted text-uppercase" style="letter-spacing:.05em;">Refine</span>
+        <div class="form-check form-switch mb-0 ms-2">
+          <input class="form-check-input" type="checkbox" id="sub-toggle" {% if sub %}checked{% endif %}>
+          <label class="form-check-label small" for="sub-toggle">Include sub-codes</label>
+        </div>
+      </div>
+      <input type="text" id="kw1-input" class="form-control form-control-sm mb-2"
+             placeholder='Keywords e.g. managed print'
+             value="{{ kw1 }}">
+      <div class="text-center mb-2">
+        <button type="button" id="op-toggle" class="btn btn-sm btn-outline-secondary"
+                style="min-width:80px;" data-op="{{ op }}">
+          <span id="op-and" {% if op != 'and' %}style="opacity:0.35;"{% endif %}>AND</span>
+          <span class="text-muted mx-1">/</span>
+          <span id="op-or" {% if op != 'or' %}style="opacity:0.35;"{% endif %}>OR</span>
+        </button>
+      </div>
+      <div class="input-group input-group-sm">
+        <input type="text" id="kw2-input" class="form-control"
+               placeholder='Keywords e.g. security'
+               value="{{ kw2 }}">
+        <button class="btn btn-dark" id="kw-apply" type="button">Apply</button>
+        {% if kw1 or kw2 %}
+        <button class="btn btn-outline-secondary" id="kw-clear" type="button">Clear</button>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+
+{% if notice_count == 0 %}
+<div class="alert alert-warning">
+  No contracts awarded found for CPV {{ code }}
+  {% if not sub %} — try enabling <strong>Include sub-codes</strong>.{% endif %}
+  {% if kw1 or kw2 %} — try removing keyword filters.{% endif %}
+</div>
+{% else %}
+
+<!-- ── Stat tiles ──────────────────────────────────────────────────────────── -->
+<div class="row g-3 mb-4">
+
+  <div class="col-sm-6 col-lg-3">
+    <a href="/cpv/notices?code={{ code }}&sub={{ 'true' if sub else 'false' }}&kw1={{ kw1 | urlencode }}&kw2={{ kw2 | urlencode }}&op={{ op }}" class="text-decoration-none">
+      <div class="card h-100 border-0 shadow-sm tile-clickable">
+        <div class="card-body">
+          <div class="text-muted small mb-1">Contracts Awarded</div>
+          <div class="fs-2 fw-bold">{{ "{:,}".format(notice_count) }}</div>
+          <div class="text-muted small mt-1">since 2021</div>
+        </div>
+      </div>
+    </a>
+  </div>
+
+  <div class="col-sm-6 col-lg-3">
+    <div class="card h-100 border-0 shadow-sm">
+      <div class="card-body">
+        <div class="text-muted small mb-1">Typical Contract Value</div>
+        {% if median_value %}
+        <div class="fs-2 fw-bold">&pound;{{ "{:,.0f}".format(median_value) }}</div>
+        <div class="text-muted small mt-1">median · excl. new frameworks</div>
+        {% else %}
+        <div class="fs-2 fw-bold text-muted">—</div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+  <div class="col-sm-6 col-lg-3">
+    <div class="card h-100 border-0 shadow-sm">
+      <div class="card-body">
+        <div class="text-muted small mb-1">Median Tenders Received</div>
+        {% if avg_tenders %}
+        <div class="fs-2 fw-bold">{{ "{:,.1f}".format(avg_tenders) }}</div>
+        <div class="text-muted small mt-1">above-threshold open procedure</div>
+        {% else %}
+        <div class="fs-2 fw-bold text-muted">—</div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+  {% if fw_count %}
+  <div class="col-sm-6 col-lg-3">
+    <a href="/cpv/notices?code={{ code }}&sub={{ 'true' if sub else 'false' }}&kw1={{ kw1 | urlencode }}&kw2={{ kw2 | urlencode }}&op={{ op }}&is_framework=true" class="text-decoration-none">
+      <div class="card h-100 border-0 shadow-sm tile-clickable">
+        <div class="card-body">
+          <div class="text-muted small mb-1">New Framework Agreements</div>
+          <div class="fs-2 fw-bold">{{ "{:,}".format(fw_count) }}</div>
+          {% if fw_total %}
+          <div class="text-muted small mt-1">est. max &pound;{{ "{:,.0f}".format(fw_total) }}</div>
+          {% endif %}
+        </div>
+      </div>
+    </a>
+  </div>
+  {% endif %}
+
+  {% if dps_count or dm_count %}
+  <div class="col-sm-6 col-lg-3">
+    <a href="/cpv/notices?code={{ code }}&sub={{ 'true' if sub else 'false' }}&kw1={{ kw1 | urlencode }}&kw2={{ kw2 | urlencode }}&op={{ op }}&dps=true" class="text-decoration-none">
+      <div class="card h-100 border-0 shadow-sm tile-clickable">
+        <div class="card-body">
+          <div class="text-muted small mb-1">DPS</div>
+          {% if dps_count %}
+          <div class="d-flex align-items-baseline gap-2">
+            <div class="fs-2 fw-bold">{{ "{:,}".format(dps_count) }}</div>
+            <div class="text-muted small">Dynamic Purchasing Systems</div>
+          </div>
+          {% endif %}
+          {% if dm_count %}
+          <div class="d-flex align-items-baseline gap-2 {% if dps_count %}mt-1{% endif %}">
+            <div class="fs-{% if dps_count %}4{% else %}2{% endif %} fw-bold">{{ "{:,}".format(dm_count) }}</div>
+            <div class="text-muted small">Dynamic Markets</div>
+          </div>
+          {% endif %}
+          <div class="text-muted small mt-1">establishment notices</div>
+        </div>
+      </div>
+    </a>
+  </div>
+  {% endif %}
+
+  {% if avg_base_str %}
+  <div class="col-sm-6 col-lg-3">
+    <div class="card h-100 border-0 shadow-sm">
+      <div class="card-body">
+        <div class="text-muted small mb-1">Typical Contract Duration</div>
+        <div class="fs-2 fw-bold">{{ avg_full_str or avg_base_str }}</div>
+        <div class="text-muted small mt-1">avg. incl. extensions</div>
+        {% if avg_extension_str %}
+        <div class="text-muted small">avg. {{ avg_extension_str }} extension</div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+  {% endif %}
+
+</div>
+
+<!-- ── Recent buyers + supplier tiles (3-col) ─────────────────────────────── -->
+{% if recent_buyers or top_by_count or top_suppliers %}
+<div class="row g-3 mb-4">
+
+  {% if recent_buyers %}
+  <div class="col-lg-4">
+    <div class="card h-100 border-0 shadow-sm">
+      <div class="card-body px-3 py-3">
+        <div class="text-muted small mb-2">Recent Buyers</div>
+        {% for b in recent_buyers %}
+        <a href="/notice/{{ b.release_id }}" class="text-decoration-none text-dark">
+          <div class="py-2 {% if not loop.last %}border-bottom{% endif %} proc-row px-1">
+            <div class="fw-semibold small">{{ b.authority_name }}</div>
+            <div class="text-muted" style="font-size:0.78rem;">{{ b.title }}</div>
+            {% if b.contact_name or b.contact_email %}
+            <div class="text-muted" style="font-size:0.75rem;">
+              {% if b.contact_name %}{{ b.contact_name }}{% endif %}
+              {% if b.contact_name and b.contact_email %}&nbsp;·&nbsp;{% endif %}
+              {% if b.contact_email %}<a href="mailto:{{ b.contact_email }}" class="text-muted">{{ b.contact_email }}</a>{% endif %}
+            </div>
+            {% endif %}
+            <div class="text-muted" style="font-size:0.75rem;">{{ b.award_date[:10] if b.award_date else "" }}</div>
+          </div>
+        </a>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+  {% endif %}
+
+  {% if top_by_count %}
+  <div class="col-lg-4">
+    <div class="card h-100 border-0 shadow-sm">
+      <div class="card-body px-3 py-3">
+        <div class="text-muted small mb-2">Most Active Suppliers</div>
+        {% for s in top_by_count %}
+        <a href="/supplier?name={{ s.name | urlencode }}" class="text-decoration-none text-dark">
+          <div class="d-flex align-items-center py-2 {% if not loop.last %}border-bottom{% endif %} proc-row px-1">
+            <div class="flex-grow-1 small text-truncate me-2">{{ s.name }}</div>
+            <div class="small fw-semibold text-nowrap">{{ "{:,}".format(s.count) }}</div>
+          </div>
+        </a>
+        {% endfor %}
+        <div class="text-muted mt-1" style="font-size:0.72rem;">by contract count · excl. new frameworks</div>
+      </div>
+    </div>
+  </div>
+  {% endif %}
+
+  {% if top_suppliers %}
+  <div class="col-lg-4">
+    <div class="card h-100 border-0 shadow-sm">
+      <div class="card-body px-3 py-3">
+        <div class="text-muted small mb-2">Top Suppliers by Spend</div>
+        {% for s in top_suppliers %}
+        <a href="/supplier?name={{ s.name | urlencode }}" class="text-decoration-none text-dark">
+          <div class="d-flex align-items-center py-2 {% if not loop.last %}border-bottom{% endif %} proc-row px-1">
+            <div class="flex-grow-1 small text-truncate me-2">{{ s.name }}</div>
+            {% if s.total %}
+            <div class="small fw-semibold text-nowrap">&pound;{{ "{:,.0f}".format(s.total) }}</div>
+            {% endif %}
+          </div>
+        </a>
+        {% endfor %}
+        <div class="text-muted mt-1" style="font-size:0.72rem;">by awarded value · excl. new frameworks</div>
+      </div>
+    </div>
+  </div>
+  {% endif %}
+
+</div>
+{% endif %}
+
+<!-- ── Upcoming renewals + Procurement routes (side by side) ──────────────── -->
+{% if upcoming_renewals or proc_methods %}
+<div class="row g-3 mb-4">
+
+  {% if upcoming_renewals %}
+  <div class="col-lg-6">
+    <div class="card h-100 border-0 shadow-sm">
+      <div class="card-body px-3 py-3">
+        <div class="d-flex align-items-center mb-2">
+          <div class="text-muted small flex-grow-1">Upcoming Renewals <span class="fw-normal">(next 18 months · above-threshold open &amp; competitive flexible)</span></div>
+          <span class="badge bg-secondary ms-2">{{ "{:,}".format(renewal_count) }} total</span>
+        </div>
+        {% for r in upcoming_renewals %}
+        <a href="/notice/{{ r.release_id }}" class="text-decoration-none text-dark">
+          <div class="d-flex align-items-start py-2 {% if not loop.last %}border-bottom{% endif %} proc-row px-1">
+            <div class="flex-grow-1">
+              <div class="fw-semibold small">{{ r.authority_name }}</div>
+              <div class="text-muted" style="font-size:0.78rem;">{{ r.title }}</div>
+            </div>
+            <div class="text-end ms-3" style="min-width:110px; font-size:0.78rem;">
+              <div class="fw-medium">Expires {{ r.contract_end[:10] if r.contract_end else "—" }}</div>
+              {% if r.contract_max_extent %}
+              <div class="text-muted">Max {{ r.contract_max_extent[:10] }}</div>
+              {% endif %}
+            </div>
+          </div>
+        </a>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+  {% endif %}
+
+  {% if proc_methods %}
+  <div class="col-lg-6">
+    <div class="card h-100 border-0 shadow-sm">
+      <div class="card-body px-3 py-3">
+        <div class="text-muted small mb-2">Procurement Routes</div>
+        {% for pm in proc_methods %}
+        {% set pm_url %}/cpv/notices?code={{ code }}&sub={{ 'true' if sub else 'false' }}&kw1={{ kw1 | urlencode }}&kw2={{ kw2 | urlencode }}&op={{ op }}&proc_method={{ pm.method | urlencode }}{% endset %}
+        <a href="{{ pm_url }}" class="text-decoration-none text-dark">
+          <div class="d-flex align-items-center px-1 py-2 proc-row {% if not loop.last %}border-bottom{% endif %}">
+            <div class="flex-grow-1 small fw-medium">{{ pm.method }}</div>
+            <div class="text-muted small me-3">{{ "{:,}".format(pm.count) }}</div>
+            <div style="width:90px;">
+              <div class="progress" style="height:6px;">
+                <div class="progress-bar bg-secondary" style="width:{{ (pm.count / notice_count * 100) | round(1) }}%"></div>
+              </div>
+            </div>
+          </div>
+        </a>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+  {% endif %}
+
+</div>
+{% endif %}
+
+<!-- ── Spend over time chart (full width, bottom) ─────────────────────────── -->
+{% if spend_chart %}
+<div class="row g-3 mb-4">
+  <div class="col-12">
+    <div class="card border-0 shadow-sm">
+      <div class="card-body px-4 py-3">
+        <div class="text-muted small mb-3">Spend Over Time <span class="fw-normal">(excl. frameworks)</span></div>
+        <canvas id="spendChart" height="100"></canvas>
+      </div>
+    </div>
+  </div>
+</div>
+{% endif %}
+
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+{% if spend_chart %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
+<script>
+const spendData = {{ spend_chart | tojson }};
+const ctx = document.getElementById('spendChart');
+
+const gradient = ctx.getContext('2d').createLinearGradient(0, 0, 0, 220);
+gradient.addColorStop(0, 'rgba(79, 70, 229, 0.85)');
+gradient.addColorStop(1, 'rgba(139, 92, 246, 0.4)');
+
+new Chart(ctx, {
+  type: 'bar',
+  data: {
+    labels: spendData.map(d => d.year),
+    datasets: [
+      {
+        label: 'Total Spend',
+        data: spendData.map(d => d.total),
+        backgroundColor: gradient,
+        borderRadius: 5,
+        borderSkipped: false,
+        yAxisID: 'ySpend',
+        order: 2,
+      },
+      {
+        label: 'Notices',
+        data: spendData.map(d => d.count),
+        type: 'line',
+        borderColor: 'rgba(236, 72, 153, 0.8)',
+        backgroundColor: 'rgba(236, 72, 153, 0.1)',
+        pointBackgroundColor: 'rgba(236, 72, 153, 0.9)',
+        pointRadius: 4,
+        pointHoverRadius: 6,
+        borderWidth: 2,
+        tension: 0.35,
+        fill: false,
+        yAxisID: 'yCount',
+        order: 1,
+      }
+    ]
+  },
+  options: {
+    responsive: true,
+    interaction: { mode: 'index', intersect: false },
+    plugins: {
+      legend: {
+        display: true,
+        position: 'top',
+        align: 'end',
+        labels: { boxWidth: 10, boxHeight: 10, font: { size: 11 }, padding: 12 }
+      },
+      tooltip: {
+        backgroundColor: 'rgba(15,15,25,0.85)',
+        titleFont: { size: 12 },
+        bodyFont: { size: 11 },
+        padding: 10,
+        callbacks: {
+          label: ctx => ctx.dataset.yAxisID === 'ySpend'
+            ? ' £' + ctx.parsed.y.toLocaleString('en-GB', {maximumFractionDigits: 0})
+            : ' ' + ctx.parsed.y.toLocaleString() + ' notices'
+        }
+      }
+    },
+    scales: {
+      ySpend: {
+        position: 'left',
+        ticks: {
+          callback: v => '£' + (v >= 1e9 ? (v/1e9).toFixed(1)+'b' : v >= 1e6 ? (v/1e6).toFixed(0)+'m' : (v/1e3).toFixed(0)+'k'),
+          font: { size: 11 },
+          color: 'rgba(79, 70, 229, 0.8)'
+        },
+        grid: { color: 'rgba(0,0,0,0.04)' },
+        border: { display: false }
+      },
+      yCount: {
+        position: 'right',
+        grid: { display: false },
+        ticks: { font: { size: 11 }, color: 'rgba(236, 72, 153, 0.8)' },
+        border: { display: false }
+      },
+      x: {
+        ticks: { font: { size: 11 }, color: '#6b7280' },
+        grid: { display: false },
+        border: { display: false }
+      }
+    }
+  }
+});
+</script>
+{% endif %}
+<script>
+function reloadWith(params) {
+  const url = new URL(window.location.href);
+  for (const [k, v] of Object.entries(params)) {
+    if (v === null || v === '') {
+      url.searchParams.delete(k);
+    } else {
+      url.searchParams.set(k, v);
+    }
+  }
+  window.location.href = url.toString();
+}
+
+document.getElementById('sub-toggle').addEventListener('change', function () {
+  reloadWith({ sub: this.checked ? 'true' : 'false' });
+});
+
+const opToggle = document.getElementById('op-toggle');
+opToggle.addEventListener('click', () => {
+  const next = opToggle.dataset.op === 'and' ? 'or' : 'and';
+  opToggle.dataset.op = next;
+  document.getElementById('op-and').style.opacity = next === 'and' ? '1' : '0.35';
+  document.getElementById('op-or').style.opacity = next === 'or' ? '1' : '0.35';
+});
+
+document.getElementById('kw-apply').addEventListener('click', () => {
+  reloadWith({
+    kw1: document.getElementById('kw1-input').value.trim(),
+    kw2: document.getElementById('kw2-input').value.trim(),
+    op: opToggle.dataset.op,
+  });
+});
+
+['kw1-input', 'kw2-input'].forEach(id => {
+  document.getElementById(id).addEventListener('keydown', e => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      reloadWith({
+        kw1: document.getElementById('kw1-input').value.trim(),
+        kw2: document.getElementById('kw2-input').value.trim(),
+        op: opToggle.dataset.op,
+      });
+    }
+  });
+});
+
+const clearBtn = document.getElementById('kw-clear');
+if (clearBtn) {
+  clearBtn.addEventListener('click', () => reloadWith({ kw1: '', kw2: '' }));
+}
+</script>
+{% endblock %}

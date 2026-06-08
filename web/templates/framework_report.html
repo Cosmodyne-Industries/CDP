@@ -1,0 +1,240 @@
+{% extends "base.html" %}
+{% block title %}Framework Report — CDP{% endblock %}
+{% set active = "framework" %}
+
+{% block content %}
+
+<!-- Back + search terms header -->
+<div class="d-flex align-items-start mb-1 gap-3 flex-wrap">
+  <a href="/framework{% if search_qs %}?{{ search_qs }}{% endif %}" class="btn btn-sm btn-outline-secondary flex-shrink-0 mt-1">&larr; Back</a>
+  <div class="flex-grow-1">
+    <h5 class="mb-1 fw-semibold">Framework Report</h5>
+    <div class="text-muted small mb-2">
+      {% if code %}<span class="me-2">CPV: <strong>{{ code }}</strong></span>{% endif %}
+      {% if q %}<span class="me-2">Keywords: <strong>{{ q }}</strong></span>{% endif %}
+      {% if names %}Supplier: {% for n in names %}<strong>{{ n }}</strong>{% if not loop.last %}, {% endif %}{% endfor %}{% endif %}
+    </div>
+    <!-- Inline keyword refinement -->
+    <form method="get" action="/framework/report" class="d-flex gap-2 align-items-center flex-wrap" autocomplete="off" id="refine-form">
+      {% if code %}<input type="hidden" name="code" value="{{ code }}">{% endif %}
+      {% for n in names %}<input type="hidden" name="name" value="{{ n }}">{% endfor %}
+      <input type="hidden" name="sub" value="{{ 'true' if sub else 'false' }}">
+      <input type="text" name="q" value="{{ q }}"
+             class="form-control form-control-sm" style="max-width:260px;"
+             placeholder="Add or change keywords…">
+      <button type="submit" class="btn btn-sm btn-dark">Refine</button>
+      {% if q %}
+      <a href="/framework/report?{{ search_qs_no_q }}" class="btn btn-sm btn-outline-secondary">Clear keywords</a>
+      {% endif %}
+    </form>
+  </div>
+</div>
+
+<hr class="mt-2 mb-4">
+
+<!-- ── Stat tiles ──────────────────────────────────────────────────────────── -->
+<div class="row g-3 mb-4">
+  <div class="col-6 col-md-3">
+    <div class="card border-0 shadow-sm h-100">
+      <div class="card-body text-center py-3">
+        <div class="fs-2 fw-bold">{{ total }}</div>
+        <div class="text-muted small">Frameworks matched</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-6 col-md-3">
+    <div class="card border-0 shadow-sm h-100">
+      <div class="card-body text-center py-3">
+        <div class="fs-2 fw-bold" style="color:#16a34a;">{{ total_active }}</div>
+        <div class="text-muted small">Confirmed active</div>
+        <div class="text-muted" style="font-size:0.7rem;">(end date in future)</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-6 col-md-3">
+    <div class="card border-0 shadow-sm h-100">
+      <div class="card-body text-center py-3">
+        <div class="fs-2 fw-bold" style="color:#65a30d;">{{ total_active_or_likely }}</div>
+        <div class="text-muted small">Active or likely active</div>
+        <div class="text-muted" style="font-size:0.7rem;">(incl. est. &lt;4 yrs ago)</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-6 col-md-3">
+    <div class="card border-0 shadow-sm h-100">
+      <div class="card-body text-center py-3">
+        <div class="fs-2 fw-bold" style="color:#7c3aed;">{{ total_known_active_or_likely }}</div>
+        <div class="text-muted small">From known providers</div>
+        <div class="text-muted" style="font-size:0.7rem;">(active or likely active)</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ── Known providers toggle ───────────────────────────────────────────────── -->
+<div class="d-flex justify-content-end mb-3">
+  <div class="form-check form-switch mb-0">
+    <input class="form-check-input" type="checkbox" role="switch" id="knownOnlyToggle">
+    <label class="form-check-label small text-muted" for="knownOnlyToggle">Known providers only</label>
+  </div>
+</div>
+
+<!-- ── Framework tiles ─────────────────────────────────────────────────────── -->
+<div class="row g-4">
+  <div class="col-12">
+
+    {% macro fw_table(frameworks, tile_id) %}
+    {% if frameworks %}
+    <div class="table-responsive">
+      <table class="table table-sm table-hover mb-0 align-middle" style="font-size:0.82rem;">
+        <thead class="text-muted" style="font-size:0.75rem;">
+          <tr>
+            <th class="fw-normal" style="min-width:260px;">Framework</th>
+            <th class="fw-normal" style="min-width:160px;">Authority</th>
+            <th class="fw-normal text-center">Status</th>
+            <th class="fw-normal text-end" style="min-width:90px;">Best end date</th>
+            <th class="fw-normal text-end">Lots</th>
+            <th class="fw-normal text-end">Suppliers</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for fw in frameworks %}
+          {% set best_end = fw.contract_max_extent if fw.contract_max_extent else fw.contract_end %}
+          <tr class="fw-row"
+              data-href="/framework/{{ fw.release_id }}"
+              data-description="{{ fw.description | truncate(350) | e if fw.description else '' }}"
+              style="cursor:pointer;">
+            <td>
+              <span class="fw-semibold">{{ fw.title | truncate(70) }}</span>
+              {% if fw.is_dps %}
+                <span class="badge ms-1" style="font-size:0.6rem;background-color:#7c3aed;color:#fff;">DPS</span>
+              {% elif fw.is_dynamic_market %}
+                <span class="badge ms-1" style="font-size:0.6rem;background-color:#0891b2;color:#fff;">DM</span>
+              {% endif %}
+            </td>
+            <td>
+              <span class="text-muted">{{ fw.authority_name | truncate(35) }}</span>
+              {% if fw.provider %}
+                <span class="badge ms-1" style="font-size:0.6rem;background-color:{{ fw.provider.colour }};color:#fff;">{{ fw.provider.name }}</span>
+              {% endif %}
+            </td>
+            <td class="text-center">
+              {% if fw.status == 'active' %}
+                <span class="badge" style="font-size:0.65rem;background-color:#16a34a;color:#fff;">Active</span>
+              {% elif fw.status == 'likely_active' %}
+                <span class="badge" style="font-size:0.65rem;background-color:#65a30d;color:#fff;">Likely Active</span>
+              {% else %}
+                <span class="badge" style="font-size:0.65rem;background-color:#6b7280;color:#fff;">Likely Expired</span>
+              {% endif %}
+            </td>
+            <td class="text-end text-muted">
+              {% if best_end %}
+                {{ best_end[:10] }}
+                {% if fw.contract_max_extent %}<span class="text-success ms-1" title="Extension date">↗</span>{% endif %}
+              {% else %}—{% endif %}
+            </td>
+            <td class="text-end">{{ fw.lot_count or '—' }}</td>
+            <td class="text-end">{{ fw.supplier_count or '—' }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <p class="text-muted small mb-0">None found for this search.</p>
+    {% endif %}
+    {% endmacro %}
+
+    <!-- Known providers tile -->
+    <div class="card border-0 shadow-sm mb-4">
+      <div class="card-body px-3 py-3">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+          <div>
+            <span class="fw-semibold">Known Providers</span>
+            <span class="badge bg-secondary ms-2">{{ known_providers | length }}</span>
+          </div>
+          <a href="/framework" class="text-muted small text-decoration-none">ℹ All providers</a>
+        </div>
+        {{ fw_table(known_providers, 'kp') }}
+      </div>
+    </div>
+
+    <!-- Other authorities tile -->
+    <div id="other-authorities-card" class="card border-0 shadow-sm mb-4">
+      <div class="card-body px-3 py-3">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+          <div>
+            <span class="fw-semibold">Other Authorities</span>
+            <span class="badge bg-secondary ms-2">{{ other_authorities | length }}</span>
+          </div>
+          {% if total == 500 %}
+          <span class="text-muted small">Result cap reached — refine search to see more</span>
+          {% endif %}
+        </div>
+        {{ fw_table(other_authorities, 'oa') }}
+      </div>
+    </div>
+
+  </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+// Known providers only toggle
+const toggle = document.getElementById('knownOnlyToggle');
+const otherCard = document.getElementById('other-authorities-card');
+const PREF_KEY = 'fw_known_only';
+
+function applyToggle(on) {
+  if (otherCard) otherCard.style.display = on ? 'none' : '';
+}
+
+// Restore saved preference
+const saved = localStorage.getItem(PREF_KEY);
+if (saved === 'true') { toggle.checked = true; applyToggle(true); }
+
+toggle.addEventListener('change', () => {
+  localStorage.setItem(PREF_KEY, toggle.checked);
+  applyToggle(toggle.checked);
+});
+
+// Clickable rows
+document.querySelectorAll('.fw-row').forEach(row => {
+  row.addEventListener('click', () => { window.location.href = row.dataset.href; });
+});
+
+// Cursor-following description tooltip
+const tip = document.createElement('div');
+tip.style.cssText = [
+  'position:fixed',
+  'max-width:300px',
+  'background:#1e293b',
+  'color:#f1f5f9',
+  'padding:7px 11px',
+  'border-radius:6px',
+  'font-size:0.75rem',
+  'line-height:1.45',
+  'z-index:9999',
+  'pointer-events:none',
+  'display:none',
+  'box-shadow:0 4px 14px rgba(0,0,0,0.25)',
+  'white-space:pre-wrap',
+].join(';');
+document.body.appendChild(tip);
+
+document.querySelectorAll('.fw-row').forEach(row => {
+  const desc = row.dataset.description;
+  if (!desc) return;
+  row.addEventListener('mouseenter', () => { tip.textContent = desc; tip.style.display = 'block'; });
+  row.addEventListener('mousemove', e => {
+    const x = Math.min(e.clientX + 18, window.innerWidth - 320);
+    const y = Math.min(e.clientY + 12, window.innerHeight - 160);
+    tip.style.left = x + 'px';
+    tip.style.top  = y + 'px';
+  });
+  row.addEventListener('mouseleave', () => { tip.style.display = 'none'; });
+});
+</script>
+{% endblock %}

@@ -1,0 +1,174 @@
+{% extends "base.html" %}
+{% block title %}{{ names[0] }}{% if names | length > 1 %} +{{ names | length - 1 }} more{% endif %} — Notices{% endblock %}
+{% set active = "supplier" %}
+
+{% block content %}
+<div class="d-flex align-items-center mb-1">
+  <a href="{{ report_url }}" class="btn btn-sm btn-outline-secondary me-3">&larr; Back to report</a>
+  <div>
+    <span class="fw-semibold fs-5">{{ names[0] }}</span>
+    {% if names | length > 1 %}
+    {% for n in names[1:] %}
+    <span class="badge bg-secondary ms-1">{{ n }}</span>
+    {% endfor %}
+    {% endif %}
+    <span class="badge bg-secondary ms-2">{{ "{:,}".format(total) }} notices</span>
+  </div>
+</div>
+<hr class="mt-2 mb-3">
+
+<div id="notices-list">
+  {% for n in notices %}
+  {% set is_cf = n.regime == 'PCR2015_CF' %}
+  {% set is_pcr_fts = n.regime == 'PCR2015_FTS' %}
+  {% set is_pa23 = n.regime == 'PA23_FTS' %}
+  {% set is_establishment = n.is_framework_agreement and n.regime in ('PA23_FTS', 'PCR2015_FTS') %}
+  {% set is_calloff = n.proc_method in ('Award under framework', 'Below threshold - award under framework') or (is_cf and n.is_framework_agreement) %}
+  {% set multi_award = n.award_count and n.award_count > 1 %}
+  {% set is_dps = n.is_dps %}
+  {% set is_dm = n.is_dynamic_market %}
+  {% set is_active = n.contract_end and n.contract_end > today and (is_establishment or is_dps or is_dm) %}
+  <a href="/notice/{{ n.release_id }}" class="text-decoration-none text-dark">
+    <div class="card border-0 shadow-sm mb-2 notice-row">
+      <div class="card-body py-2 px-3">
+        <div class="row align-items-center">
+          <div class="col-md-5">
+            <div class="fw-semibold small">
+              {{ n.title }}
+              {% if is_cf or is_pcr_fts %}
+                <span class="badge bg-light text-dark border ms-1" style="font-size:0.65rem;">PCR 2015</span>
+              {% elif is_pa23 %}
+                <span class="badge bg-primary ms-1" style="font-size:0.65rem;">PA23</span>
+              {% endif %}
+              {% if is_establishment %}<span class="badge bg-success ms-1" style="font-size:0.65rem;">Framework</span>{% endif %}
+              {% if is_dps %}<span class="badge ms-1" style="font-size:0.65rem;background-color:#7c3aed;color:#fff;">DPS</span>{% endif %}
+              {% if is_dm %}<span class="badge ms-1" style="font-size:0.65rem;background-color:#0891b2;color:#fff;">Dynamic Market</span>{% endif %}
+              {% if is_active %}<span class="badge ms-1" style="font-size:0.65rem;background-color:#16a34a;color:#fff;">Active</span>{% endif %}
+              {% if is_calloff %}<span class="badge bg-info text-dark ms-1" style="font-size:0.65rem;">Call-off</span>{% endif %}
+              {% if multi_award %}<span class="badge bg-light text-dark border ms-1" style="font-size:0.65rem;">{{ n.award_count }} Contracts</span>{% endif %}
+            </div>
+            <div class="text-muted" style="font-size:0.78rem;">{{ n.authority_name }}</div>
+          </div>
+          <div class="col-md-3 small text-muted">
+            {% if multi_award %}
+            {{ n.supplier_name or "—" }} <span class="text-muted">+{{ n.award_count - 1 }} more</span>
+            {% else %}
+            {{ n.supplier_name or "—" }}
+            {% endif %}
+          </div>
+          <div class="col-md-2 small text-end">
+            {% if n.value %}&pound;{{ "{:,.0f}".format(n.value) }}{% else %}—{% endif %}
+          </div>
+          <div class="col-md-2 small text-end text-muted">
+            {{ n.award_date[:10] if n.award_date else "—" }}
+          </div>
+        </div>
+      </div>
+    </div>
+  </a>
+  {% endfor %}
+</div>
+
+<div id="scroll-sentinel" class="text-center py-3 text-muted small" style="display:none;">Loading more…</div>
+<div id="scroll-end"      class="text-center py-3 text-muted small" style="display:none;">All {{ "{:,}".format(total) }} notices loaded.</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const SUPPLIER_NAMES = {{ names | tojson }};
+const TODAY = {{ today | tojson }};
+let offset = {{ notices | length }};
+const total = {{ total }};
+let loading = false;
+
+const list     = document.getElementById('notices-list');
+const sentinel = document.getElementById('scroll-sentinel');
+const endMsg   = document.getElementById('scroll-end');
+
+if (offset >= total) endMsg.style.display = 'block';
+
+function buildApiUrl(off) {
+  const p = new URLSearchParams();
+  SUPPLIER_NAMES.forEach(n => p.append('name', n));
+  p.set('offset', off);
+  p.set('limit', 50);
+  return '/api/supplier/notices?' + p.toString();
+}
+
+function buildBadges(n) {
+  const isCf     = n.regime === 'PCR2015_CF';
+  const isPcrFts = n.regime === 'PCR2015_FTS';
+  const isPa23   = n.regime === 'PA23_FTS';
+  const isEstab  = n.is_framework_agreement && (n.regime === 'PA23_FTS' || n.regime === 'PCR2015_FTS');
+  const isDps    = n.is_dps;
+  const isDm     = n.is_dynamic_market;
+  const contractEnd = n.contract_end ? n.contract_end.substring(0, 10) : null;
+  const isActive = contractEnd && contractEnd > TODAY && (isEstab || isDps || isDm);
+  const calloffMethods = ['Award under framework', 'Below threshold - award under framework'];
+  const isCalloff  = calloffMethods.includes(n.proc_method) || (isCf && n.is_framework_agreement);
+  const multiAward = n.award_count && n.award_count > 1;
+
+  let src = '';
+  if (isCf || isPcrFts)
+    src = '<span class="badge bg-light text-dark border ms-1" style="font-size:0.65rem;">PCR 2015</span>';
+  else if (isPa23)
+    src = '<span class="badge bg-primary ms-1" style="font-size:0.65rem;">PA23</span>';
+
+  return [
+    src,
+    isEstab    ? '<span class="badge bg-success ms-1" style="font-size:0.65rem;">Framework</span>' : '',
+    isDps      ? '<span class="badge ms-1" style="font-size:0.65rem;background-color:#7c3aed;color:#fff;">DPS</span>' : '',
+    isDm       ? '<span class="badge ms-1" style="font-size:0.65rem;background-color:#0891b2;color:#fff;">Dynamic Market</span>' : '',
+    isActive   ? '<span class="badge ms-1" style="font-size:0.65rem;background-color:#16a34a;color:#fff;">Active</span>' : '',
+    isCalloff  ? '<span class="badge bg-info text-dark ms-1" style="font-size:0.65rem;">Call-off</span>' : '',
+    multiAward ? `<span class="badge bg-light text-dark border ms-1" style="font-size:0.65rem;">${n.award_count} Contracts</span>` : '',
+  ].join('');
+}
+
+async function loadMore() {
+  if (loading || offset >= total) return;
+  loading = true;
+  sentinel.style.display = 'block';
+
+  const items = await fetch(buildApiUrl(offset)).then(r => r.json());
+
+  items.forEach(n => {
+    const multiAward = n.award_count && n.award_count > 1;
+    const supplierText = multiAward
+      ? `${n.supplier_name || '—'} <span class="text-muted">+${n.award_count - 1} more</span>`
+      : (n.supplier_name || '—');
+    const a = document.createElement('a');
+    a.href = `/notice/${n.release_id}`;
+    a.className = 'text-decoration-none text-dark';
+    a.innerHTML = `
+      <div class="card border-0 shadow-sm mb-2 notice-row">
+        <div class="card-body py-2 px-3">
+          <div class="row align-items-center">
+            <div class="col-md-5">
+              <div class="fw-semibold small">${n.title}${buildBadges(n)}</div>
+              <div class="text-muted" style="font-size:0.78rem;">${n.authority_name || ''}</div>
+            </div>
+            <div class="col-md-3 small text-muted">${supplierText}</div>
+            <div class="col-md-2 small text-end">${n.value ? '£' + n.value.toLocaleString('en-GB', {maximumFractionDigits:0}) : '—'}</div>
+            <div class="col-md-2 small text-end text-muted">${n.award_date ? n.award_date.substring(0,10) : '—'}</div>
+          </div>
+        </div>
+      </div>`;
+    list.appendChild(a);
+  });
+
+  offset += items.length;
+  loading = false;
+  sentinel.style.display = 'none';
+  if (offset >= total) endMsg.style.display = 'block';
+}
+
+const observer = new IntersectionObserver(
+  entries => { if (entries[0].isIntersecting) loadMore(); },
+  { rootMargin: '200px' }
+);
+const anchor = document.createElement('div');
+list.after(anchor);
+observer.observe(anchor);
+</script>
+{% endblock %}
