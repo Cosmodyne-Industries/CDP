@@ -1,12 +1,16 @@
-# CDP — Procurement Intelligence Platform
+# CDP 2.0 — Procurement Intelligence Platform
 
 A full-stack data platform that ingests UK public-sector procurement notices from
 government APIs, normalises them into a queryable analytical database, and serves
 a web application for exploring spend patterns, frameworks, suppliers and buyers.
 
-Built to answer practical questions that are hard to get out of the official portals:
-*Which suppliers dominate a category? Which frameworks are still active? When does
-a contract come up for renewal? How many tenders does a typical procurement attract?*
+This is a fully vibe-coded deployment as I needed a quick fix for a small target audience. Nonetheless, it was still a couple of weeks work trying to nomralise the data across two platforms and two notice regimes!
+
+It is intended to temporarily bridge the gap between current Find a Tender Service functionality, and what was promised with the introduction of the "Central Digital Platform". The key uses are for early market research: to understand key suppliers in a category, average numbers of tenders, and to identify suitable frameworks. 
+
+My version is currently limited to notices from 2021 onwards, due to diminishing relevance of older notice and my impatience. 
+
+AI generated stack summary and instructions below. 
 
 ---
 
@@ -128,6 +132,10 @@ Then visit `http://127.0.0.1:9000`.
 ```bash
 python ingest.py --sync
 ```
+> **Note:** For a fuller historical dataset, `ocp_ingest.py` bulk-imports annual
+> compiled OCDS dumps from the OCP Data Registry — far faster than paginating
+> the live FTS/CF APIs category-by-category, and the only way to backfill PA23
+> notices published before ~April 2026 (which the live API's date filter doesn't index).
 
 ## Project structure
 
