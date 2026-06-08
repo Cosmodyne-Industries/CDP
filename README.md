@@ -101,13 +101,13 @@ pip install -r requirements.txt
 Create a `.env` file in the project root:
 
 ```
-FTS_API_KEY=your_fts_api_key_here     # obtain from your FTS organisation profile
 ADMIN_USER=admin
 ADMIN_PASS=changeme
-SECRET_KEY=generate-a-random-secret-key
+SECRET_KEY=generate-a-random-secret-key   # signs session cookies — use a long random string
 ```
 
-Contracts Finder requires no API key — it's a public, unauthenticated endpoint.
+Both data sources (Find a Tender Service and Contracts Finder) are public,
+unauthenticated endpoints — no API keys needed to pull data.
 
 **1. Pull some data** (e.g. CPV 79710000 — security services, last 365 days):
 
