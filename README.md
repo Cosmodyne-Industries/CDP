@@ -32,6 +32,14 @@ a contract come up for renewal? How many tenders does a typical procurement attr
   - **Full-text notice search** — keyword + category + supplier + date filtering
     across the full notice corpus
 
+## Screenshots
+
+| | |
+|---|---|
+| **Homepage** ![Homepage](images/homepage.png) | **Category report** ![Category report](images/categoryreport.png) |
+| **Category search** ![Category search](images/categorysearch.png) | **Framework search** ![Framework search](images/frameworksearch.png) |
+| **Example visualisation** ![Example visualisation](images/examplevisual.png) | |
+
 ## Architecture
 
 ```
