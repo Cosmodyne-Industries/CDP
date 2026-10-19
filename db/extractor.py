@@ -314,7 +314,7 @@ _CF_PROC_METHOD = {
     "other":        "Below threshold - unknown",
 }
 
-_CF_FRAMEWORK_EXACT = frozenset({
+_CF_FRAMEWORK_CALLOFF_EXACT = frozenset({
     "Call-off from a framework agreement",
     "Call-off from a dynamic purchasing system",
 })
@@ -346,17 +346,25 @@ _CF_DIRECT_EXACT = frozenset({
     "Catalogue purchase",
 })
 
-_CF_FRAMEWORK_KW = ("framework", "call-off", "call off", "g-cloud", "g cloud")
+_CF_CALLOFF_KW   = ("call-off", "call off", "g-cloud", "g cloud")
+_CF_FRAMEWORK_KW = ("framework",)
 _CF_DIRECT_KW    = ("direct award", "single tender", "single source", "sole source",
                     "sole supplier", "waiver", "exemption", "without prior publication",
                     "without competition")
 
 
 def _cf_proc_route(pmd: Optional[str]) -> tuple[str, bool]:
+    """Return (proc_route, is_framework_establishment).
+
+    is_framework_establishment=True only for notices that ESTABLISH a framework
+    agreement. Call-off awards from an existing framework get False here
+    (they are real spend, not max-value estimates).
+    """
     if not pmd:
         return "other", False
-    if pmd in _CF_FRAMEWORK_EXACT:
-        return "framework", True
+    # Explicit call-off PMD strings → call-off, not an establishment
+    if pmd in _CF_FRAMEWORK_CALLOFF_EXACT:
+        return "framework", False
     if pmd in _CF_OPEN_EXACT:
         return "open", False
     if pmd in _CF_RESTRICTED_EXACT:
@@ -364,6 +372,10 @@ def _cf_proc_route(pmd: Optional[str]) -> tuple[str, bool]:
     if pmd in _CF_DIRECT_EXACT:
         return "direct_award", False
     lower = pmd.lower()
+    # Call-off keywords (call-off, g-cloud, etc.) → call-off, not an establishment
+    if any(kw in lower for kw in _CF_CALLOFF_KW):
+        return "framework", False
+    # "framework" without call-off keywords → this notice establishes a framework
     if any(kw in lower for kw in _CF_FRAMEWORK_KW):
         return "framework", True
     if any(kw in lower for kw in _CF_DIRECT_KW):
@@ -640,11 +652,14 @@ INSERT OR REPLACE INTO notices (
 
 
 def run_extraction(db_path: str = "data.duckdb", batch_size: int = 500,
-                   only_missing: bool = False) -> dict:
+                   only_missing: bool = False, fetch_chunk: int = 1000) -> dict:
+    # Use conn.cursor() for reading so that conn.executemany() (writes) don't
+    # overwrite the SELECT result state mid-iteration.
     conn = duckdb.connect(db_path)
+    read_cursor = conn.cursor()
 
     if only_missing:
-        rows = conn.execute("""
+        select_sql = """
             SELECT r.release_id, r.regime, r.raw_json
             FROM raw_releases r
             WHERE NOT EXISTS (
@@ -652,39 +667,48 @@ def run_extraction(db_path: str = "data.duckdb", batch_size: int = 500,
                 WHERE n.regime = r.regime AND n.release_id = r.release_id
             )
             ORDER BY r.release_date
-        """).fetchall()
+        """
     else:
-        rows = conn.execute(
-            "SELECT release_id, regime, raw_json FROM raw_releases ORDER BY release_date"
-        ).fetchall()
+        select_sql = "SELECT release_id, regime, raw_json FROM raw_releases ORDER BY release_date"
 
-    total = len(rows)
+    total = read_cursor.execute(f"SELECT COUNT(*) FROM ({select_sql}) _t").fetchone()[0]
+
+    read_cursor.execute(select_sql)
     extracted = 0
     skipped = 0
     errors = 0
+    processed = 0
     batch = []
 
-    for release_id, regime, raw_json in rows:
-        try:
-            data = json.loads(raw_json) if isinstance(raw_json, str) else raw_json
-            records = classify_release(release_id, regime, data)
-            if not records:
-                skipped += 1
-                continue
-            batch.extend(records)
-            extracted += len(records)
-            if len(batch) >= batch_size:
-                conn.executemany(_INSERT_SQL, batch)
-                conn.commit()
-                batch = []
-        except Exception as e:
-            log.warning("Error processing %s: %s", release_id, e)
-            errors += 1
+    while True:
+        chunk = read_cursor.fetchmany(fetch_chunk)
+        if not chunk:
+            break
+        for release_id, regime, raw_json in chunk:
+            processed += 1
+            try:
+                data = json.loads(raw_json) if isinstance(raw_json, str) else raw_json
+                records = classify_release(release_id, regime, data)
+                if not records:
+                    skipped += 1
+                    continue
+                batch.extend(records)
+                extracted += len(records)
+                if len(batch) >= batch_size:
+                    conn.executemany(_INSERT_SQL, batch)
+                    conn.commit()
+                    batch = []
+            except Exception as e:
+                log.warning("Error processing %s: %s", release_id, e)
+                errors += 1
+        if processed % 10000 == 0:
+            print(f"  [extractor] {processed}/{total} processed...", flush=True)
 
     if batch:
         conn.executemany(_INSERT_SQL, batch)
         conn.commit()
 
+    read_cursor.close()
     conn.close()
     return {"total": total, "extracted": extracted, "skipped": skipped, "errors": errors}
 

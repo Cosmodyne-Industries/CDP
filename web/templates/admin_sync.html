@@ -1,0 +1,52 @@
+{% extends "base.html" %}
+{% block title %}Data Sync — CDP{% endblock %}
+
+{% block content %}
+<div style="max-width:860px;margin:0 auto;">
+
+  <div class="d-flex align-items-center justify-content-between mb-4">
+    <div>
+      <h5 class="fw-semibold mb-0">Data Sync</h5>
+      <div class="text-muted small">Delta sync from Find a Tender Service &amp; Contracts Finder</div>
+    </div>
+    {% if running %}
+    <span class="badge bg-warning text-dark">
+      <span class="spinner-border spinner-border-sm me-1" role="status"></span>
+      Sync running…
+    </span>
+    {% else %}
+    <form method="post" action="/admin/sync">
+      <button class="btn btn-dark btn-sm" type="submit">Run sync now</button>
+    </form>
+    {% endif %}
+  </div>
+
+  {% if last_sync %}
+  <div class="text-muted small mb-3">Last sync: {{ last_sync }}</div>
+  {% endif %}
+
+  {% if log %}
+  <div class="card border-0 shadow-sm">
+    <div class="card-body p-0">
+      <pre id="log-output" class="mb-0 p-3 rounded" style="background:#0f172a;color:#e2e8f0;font-size:0.72rem;line-height:1.5;max-height:70vh;overflow-y:auto;white-space:pre-wrap;word-break:break-word;">{{ log }}</pre>
+    </div>
+  </div>
+  {% else %}
+  <p class="text-muted small">No sync log yet. Hit "Run sync now" to start.</p>
+  {% endif %}
+
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  // Auto-scroll log to bottom
+  const el = document.getElementById('log-output');
+  if (el) el.scrollTop = el.scrollHeight;
+
+  {% if running %}
+  // Refresh every 5 s while sync is in progress
+  setTimeout(() => location.reload(), 5000);
+  {% endif %}
+</script>
+{% endblock %}

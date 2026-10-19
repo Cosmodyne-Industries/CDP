@@ -50,7 +50,13 @@ class FTSClient:
                 continue
 
             if resp.status_code == 200:
-                return resp.json()
+                try:
+                    return resp.json()
+                except ValueError as e:
+                    wait = 15 * (attempt + 1)
+                    print(f"  [FTS] Malformed JSON on attempt {attempt+1}/{retries}, retrying in {wait}s... ({e})")
+                    time.sleep(wait)
+                    continue
 
             if resp.status_code == 429:
                 retry_after = int(resp.headers.get("Retry-After", 60))

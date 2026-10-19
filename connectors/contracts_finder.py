@@ -49,11 +49,10 @@ class ContractsFinderClient:
             if resp.status_code == 200:
                 return resp.json()
 
-            if resp.status_code == 403:
-                # CF returns 403 for rate limit exceeded (not 429)
-                wait = 300  # 5 minutes per API docs
-                print(f"  [CF] Rate limited (403). Waiting {wait}s...")
-                time.sleep(wait)
+            if resp.status_code in (403, 429):
+                retry_after = int(resp.headers.get("Retry-After", 300))
+                print(f"  [CF] Rate limited ({resp.status_code}). Waiting {retry_after}s...")
+                time.sleep(retry_after)
                 continue
 
             raise requests.HTTPError(

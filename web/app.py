@@ -6,6 +6,8 @@ import datetime
 import json
 import os
 import re
+import subprocess
+import sys
 from functools import lru_cache
 from pathlib import Path
 from typing import List, Optional
@@ -218,6 +220,68 @@ async def logout(request: Request):
 
 
 # ---------------------------------------------------------------------------
+# Admin: data sync
+# ---------------------------------------------------------------------------
+
+SYNC_LOG_PATH  = BASE_DIR / "sync.log"
+SYNC_LOCK_PATH = BASE_DIR / "sync.lock"
+
+
+def _sync_running() -> bool:
+    if not SYNC_LOCK_PATH.exists():
+        return False
+    try:
+        pid = int(SYNC_LOCK_PATH.read_text().strip())
+        os.kill(pid, 0)  # signal 0 = check existence only
+        return True
+    except (ValueError, ProcessLookupError, PermissionError):
+        SYNC_LOCK_PATH.unlink(missing_ok=True)
+        return False
+
+
+def _sync_log() -> str:
+    if not SYNC_LOG_PATH.exists():
+        return ""
+    return SYNC_LOG_PATH.read_text(errors="replace")
+
+
+def _last_sync_time() -> str | None:
+    if not SYNC_LOG_PATH.exists():
+        return None
+    mtime = SYNC_LOG_PATH.stat().st_mtime
+    return datetime.datetime.fromtimestamp(mtime).strftime("%Y-%m-%d %H:%M")
+
+
+@app.get("/admin/sync", response_class=HTMLResponse)
+async def admin_sync_get(request: Request):
+    if not logged_in(request):
+        return RedirectResponse(url="/login", status_code=302)
+    return templates.TemplateResponse(request, "admin_sync.html", {
+        "running":   _sync_running(),
+        "log":       _sync_log(),
+        "last_sync": _last_sync_time(),
+    })
+
+
+@app.post("/admin/sync")
+async def admin_sync_post(request: Request):
+    if not logged_in(request):
+        return RedirectResponse(url="/login", status_code=302)
+    if not _sync_running():
+        SYNC_LOCK_PATH.touch()
+        SYNC_LOG_PATH.write_text(
+            f"[{datetime.datetime.now().strftime('%H:%M:%S')}] Sync queued…\n"
+        )
+        subprocess.Popen(
+            [sys.executable, str(BASE_DIR / "sync_worker.py")],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            start_new_session=True,
+        )
+    return RedirectResponse(url="/admin/sync", status_code=302)
+
+
+# ---------------------------------------------------------------------------
 # Home → redirect to CPV search
 # ---------------------------------------------------------------------------
 
@@ -250,10 +314,10 @@ async def cpv_search(request: Request, code: str = "",
     where, params = build_notice_where(code, sub, kw1, kw2, op)
 
     con = db()
-    # Framework establishments (PA23 is_framework_agreement=TRUE) are excluded from
-    # value/spend stats — their "value" is an estimated max, not real spend.
-    # CF call-offs (also is_framework_agreement=TRUE on CF) ARE real awards, so included.
-    FW_ESTAB = "NOT (is_framework_agreement = TRUE AND regime IN ('PA23_FTS', 'PCR2015_FTS'))"
+    # Framework establishment notices are excluded from value/spend stats — their
+    # "value" is an estimated max, not real spend. is_framework_agreement=TRUE marks
+    # establishments across all regimes; CF call-offs correctly have it set to FALSE.
+    FW_ESTAB = "NOT (is_framework_agreement = TRUE)"
 
     row = con.execute(f"""
         SELECT
@@ -295,7 +359,7 @@ async def cpv_search(request: Request, code: str = "",
         SELECT COUNT(DISTINCT release_id), SUM(COALESCE(value_gross, value_awarded))
         FROM notices
         WHERE ({where}) AND {CF_REPORT_EXCL}
-          AND is_framework_agreement = TRUE AND regime IN ('PA23_FTS', 'PCR2015_FTS')
+          AND is_framework_agreement = TRUE
     """, params).fetchone()
 
     dps_dm_row = con.execute(f"""
@@ -464,8 +528,7 @@ async def cpv_notices(request: Request, code: str = "",
             where = f"({where}) AND proc_method = ?"
             params = params + [proc_method]
     if is_framework is True:
-        # Framework tile: establishment notices only — excludes CF call-offs
-        where = f"({where}) AND is_framework_agreement = TRUE AND regime IN ('PA23_FTS', 'PCR2015_FTS')"
+        where = f"({where}) AND is_framework_agreement = TRUE"
     elif is_framework is False:
         where = f"({where}) AND (is_framework_agreement IS FALSE OR is_framework_agreement IS NULL)"
     if notice_type:
@@ -547,7 +610,7 @@ async def api_cpv_notices(code: str = "", sub: bool = True, kw1: str = "", kw2: 
             where = f"({where}) AND proc_method = ?"
             params = params + [proc_method]
     if is_framework is True:
-        where = f"({where}) AND is_framework_agreement = TRUE AND regime IN ('PA23_FTS', 'PCR2015_FTS')"
+        where = f"({where}) AND is_framework_agreement = TRUE"
     elif is_framework is False:
         where = f"({where}) AND (is_framework_agreement IS FALSE OR is_framework_agreement IS NULL)"
     if notice_type:
@@ -905,9 +968,9 @@ async def supplier_report(request: Request, name: List[str] = Query(default=[]))
     if not names:
         return RedirectResponse(url="/supplier", status_code=302)
 
-    # Exclude framework/DPS establishments and above-threshold CF notices from spend figures
+    # Exclude framework/DPS establishments from spend figures (their value is a max estimate)
     FW_ESTAB = (
-        "NOT ((is_framework_agreement = TRUE AND regime IN ('PA23_FTS', 'PCR2015_FTS'))"
+        "NOT (is_framework_agreement = TRUE"
         "     OR is_dps = TRUE OR is_dynamic_market = TRUE"
         "     OR (regime = 'PCR2015_CF' AND above_threshold IS TRUE AND proc_route != 'framework'))"
     )
@@ -984,7 +1047,7 @@ async def supplier_report(request: Request, name: List[str] = Query(default=[]))
         FROM notices
         WHERE ({name_where})
           AND (
-            (is_framework_agreement = TRUE AND regime IN ('PA23_FTS', 'PCR2015_FTS'))
+            is_framework_agreement = TRUE
             OR is_dps = TRUE
             OR is_dynamic_market = TRUE
           )
@@ -1151,7 +1214,6 @@ async def framework_search_page(request: Request, code: str = "", q: str = ""):
             SELECT COUNT(DISTINCT release_id)
             FROM notices
             WHERE is_framework_agreement = TRUE
-              AND regime IN ('PA23_FTS', 'PCR2015_FTS')
               AND authority_name IN ({placeholders})
         """, p["authority_names"]).fetchone()
         p["framework_count"] = row[0] if row else 0
@@ -1181,7 +1243,6 @@ async def framework_report_page(
 
     conditions = [
         "is_framework_agreement = TRUE",
-        "regime IN ('PA23_FTS', 'PCR2015_FTS')",
     ]
     params: list = []
 
@@ -1298,7 +1359,6 @@ async def framework_list_page(
 
     conditions = [
         "is_framework_agreement = TRUE",
-        "regime IN ('PA23_FTS', 'PCR2015_FTS')",
     ]
     params: list = []
 

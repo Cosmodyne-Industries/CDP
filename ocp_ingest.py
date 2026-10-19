@@ -49,7 +49,7 @@ ROOT = Path(__file__).parent
 sys.path.insert(0, str(ROOT))
 
 from db.schema import init_db
-from db.extractor import ensure_date_signed_column, extract_all
+from db.extractor import run_extraction
 
 DB_PATH   = str(ROOT / "data.duckdb")
 OCP_BASE  = "https://data.open-contracting.org/en/publication/41/download"
@@ -198,7 +198,6 @@ def main():
     args = parser.parse_args()
 
     conn = init_db(DB_PATH)
-    ensure_date_signed_column(conn)
 
     current_year = _dt.now().year
 
@@ -222,16 +221,16 @@ def main():
 
     print(f"\n[OCP] Total new releases stored: {total_inserted:,}")
 
+    conn.close()
+
     if total_inserted > 0 and not args.no_extract:
         print("\n[OCP] Running extractor on newly imported releases...")
-        summary = extract_all(conn)
+        summary = run_extraction(DB_PATH, only_missing=True)
         print("\n[extractor] Summary:")
         for k, v in summary.items():
             print(f"  {k:<40} {v:>6,}")
     elif not args.no_extract:
         print("[OCP] Nothing new to extract.")
-
-    conn.close()
     print("\n[OCP] Done.")
 
 
