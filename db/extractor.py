@@ -652,40 +652,46 @@ INSERT OR REPLACE INTO notices (
 
 
 def run_extraction(db_path: str = "data.duckdb", batch_size: int = 500,
-                   only_missing: bool = False, fetch_chunk: int = 1000) -> dict:
-    # Use conn.cursor() for reading so that conn.executemany() (writes) don't
-    # overwrite the SELECT result state mid-iteration.
+                   only_missing: bool = False, id_chunk: int = 100) -> dict:
+    # Two-phase approach to avoid OOM on large raw_json payloads:
+    # Phase 1 — fetch ALL missing (release_id, regime) pairs with NO raw_json.
+    #            IDs are tiny; 400k rows ≈ 20 MB, safe for fetchall().
+    # Phase 2 — for each ID, fetch raw_json individually (one row at a time),
+    #            classify it, and accumulate an insert batch.
+    # This keeps raw_json footprint at O(id_chunk) rows at any moment.
     conn = duckdb.connect(db_path)
-    read_cursor = conn.cursor()
 
     if only_missing:
-        select_sql = """
-            SELECT r.release_id, r.regime, r.raw_json
+        id_sql = """
+            SELECT r.release_id, r.regime
             FROM raw_releases r
             WHERE NOT EXISTS (
                 SELECT 1 FROM notices n
                 WHERE n.regime = r.regime AND n.release_id = r.release_id
             )
-            ORDER BY r.release_date
         """
     else:
-        select_sql = "SELECT release_id, regime, raw_json FROM raw_releases ORDER BY release_date"
+        id_sql = "SELECT release_id, regime FROM raw_releases"
 
-    total = read_cursor.execute(f"SELECT COUNT(*) FROM ({select_sql}) _t").fetchone()[0]
+    id_rows = conn.execute(id_sql).fetchall()
+    total = len(id_rows)
 
-    read_cursor.execute(select_sql)
     extracted = 0
     skipped = 0
     errors = 0
-    processed = 0
     batch = []
 
-    while True:
-        chunk = read_cursor.fetchmany(fetch_chunk)
-        if not chunk:
-            break
-        for release_id, regime, raw_json in chunk:
-            processed += 1
+    for i in range(0, total, id_chunk):
+        chunk_ids = id_rows[i:i + id_chunk]
+        for release_id, regime in chunk_ids:
+            row = conn.execute(
+                "SELECT raw_json FROM raw_releases WHERE release_id = ? AND regime = ?",
+                [release_id, regime],
+            ).fetchone()
+            if not row:
+                skipped += 1
+                continue
+            raw_json = row[0]
             try:
                 data = json.loads(raw_json) if isinstance(raw_json, str) else raw_json
                 records = classify_release(release_id, regime, data)
@@ -701,14 +707,15 @@ def run_extraction(db_path: str = "data.duckdb", batch_size: int = 500,
             except Exception as e:
                 log.warning("Error processing %s: %s", release_id, e)
                 errors += 1
-        if processed % 10000 == 0:
+
+        processed = i + len(chunk_ids)
+        if processed % 10000 < id_chunk:
             print(f"  [extractor] {processed}/{total} processed...", flush=True)
 
     if batch:
         conn.executemany(_INSERT_SQL, batch)
         conn.commit()
 
-    read_cursor.close()
     conn.close()
     return {"total": total, "extracted": extracted, "skipped": skipped, "errors": errors}
 
